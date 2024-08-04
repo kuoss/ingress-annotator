@@ -1,8 +1,22 @@
 # ingress-annotator
-// TODO(user): Add simple overview of use/purpose
+The `ingress-annotator` is a Kubernetes controller designed to manage and reconcile annotations on Ingress resources based on rules defined in a ConfigMap. It ensures that the specified annotations are correctly applied to Ingress resources and maintains the state of applied rules. The primary purpose of this controller is to automate the management of Ingress annotations, making it easier to apply and update configurations across multiple Ingress resources in a Kubernetes cluster.
 
 ## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+The `ingress-annotator` project consists of two main reconcilers: `ConfigMapReconciler` and `IngressReconciler`.
+
+### ConfigMapReconciler
+
+The `ConfigMapReconciler` monitors a specific ConfigMap defined by its namespace and name. When changes are detected in this ConfigMap, it updates the internal data store (`RulesStore`) and triggers a reconciliation process for all Ingress resources in the cluster. During this process, it marks Ingress resources with a specific annotation (`annotatorReconcileNeededKey`) if they are enabled for reconciliation.
+
+### IngressReconciler
+
+The `IngressReconciler` handles the actual application of annotations to the Ingress resources. It fetches the current and last applied rules from the annotations, identifies any rules that need to be removed or updated, and applies the necessary changes. The reconciler then updates the Ingress resource's annotations to reflect the applied rules and the version of the ConfigMap from which the rules were sourced.
+
+### Key Features
+
+- **Automated Annotation Management**: Automatically applies and updates annotations on Ingress resources based on a ConfigMap.
+- **Reconciliation Logic**: Ensures that only enabled Ingress resources are reconciled and that annotations are accurately managed.
+- **Version Tracking**: Keeps track of the ConfigMap version to determine if an update is necessary for each Ingress resource.
 
 ## Getting Started
 
@@ -90,11 +104,28 @@ kubectl apply -f https://raw.githubusercontent.com/<org>/ingress-annotator/<tag 
 ```
 
 ## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
 
-**NOTE:** Run `make help` for more information on all potential `make` targets
+We welcome contributions to the `ingress-annotator` project! Here are some ways you can help:
 
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
+1. **Reporting Issues**: If you encounter any bugs or have suggestions for improvements, please open an issue on our GitHub repository.
+
+2. **Submitting Pull Requests**: If you'd like to contribute code, please fork the repository and create a new branch for your changes. Ensure your code follows the project's coding standards and includes appropriate tests. Once your changes are ready, submit a pull request for review.
+
+3. **Improving Documentation**: Good documentation is crucial for the success of any project. If you find gaps or inaccuracies in our documentation, feel free to submit updates.
+
+4. **Feature Requests**: If you have ideas for new features or enhancements, we'd love to hear them! Open an issue to discuss your ideas with the community.
+
+### Development Setup
+
+1. **Clone the Repository**: Clone the repository to your local machine using `git clone`.
+2. **Install Dependencies**: Ensure you have the necessary dependencies installed. This project typically requires Go and Kubernetes development tools.
+3. **Build and Test**: Build the project using the provided Makefile or relevant build scripts, and run tests to verify your changes.
+
+### Code of Conduct
+
+We adhere to the [Contributor Covenant Code of Conduct](https://www.contributor-covenant.org/version/2/0/code_of_conduct/). By participating in this project, you agree to abide by its terms.
+
+Thank you for your interest in contributing to the `ingress-annotator` project!
 
 ## License
 
