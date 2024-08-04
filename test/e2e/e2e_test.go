@@ -24,10 +24,10 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"ingress-annotations-controller/test/utils"
+	"github.com/jmnote/ingress-annotator/test/utils"
 )
 
-const namespace = "ingress-annotations-controller-system"
+const namespace = "ingress-annotator-system"
 
 var _ = Describe("controller", Ordered, func() {
 	BeforeAll(func() {
@@ -60,7 +60,7 @@ var _ = Describe("controller", Ordered, func() {
 			var err error
 
 			// projectimage stores the name of the image used in the example
-			var projectimage = "example.com/ingress-annotations-controller:v0.0.1"
+			var projectimage = "example.com/ingress-annotator:v0.0.1"
 
 			By("building the manager(Operator) image")
 			cmd := exec.Command("make", "docker-build", fmt.Sprintf("IMG=%s", projectimage))

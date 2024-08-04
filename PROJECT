@@ -2,16 +2,21 @@
 # This file is used to track the info used to scaffold your project
 # and allow the plugins properly work.
 # More info: https://book.kubebuilder.io/reference/project-config.html
-domain: jmnote.github.io
+domain: annotator.ingress.kubernetes.io
 layout:
 - go.kubebuilder.io/v4
-projectName: ingress-annotations-controller
-repo: ingress-annotations-controller
+projectName: ingress-annotator
+repo: ingress-annotator
 resources:
 - controller: true
   domain: k8s.io
   group: networking
   kind: Ingress
   path: k8s.io/api/networking/v1
+  version: v1
+- controller: true
+  group: core
+  kind: ConfigMap
+  path: k8s.io/api/core/v1
   version: v1
 version: "3"

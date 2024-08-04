@@ -3,7 +3,7 @@ kind: Namespace
 metadata:
   labels:
     control-plane: controller-manager
-    app.kubernetes.io/name: ingress-annotations-controller
+    app.kubernetes.io/name: ingress-annotator
     app.kubernetes.io/managed-by: kustomize
   name: system
 ---
@@ -14,7 +14,7 @@ metadata:
   namespace: system
   labels:
     control-plane: controller-manager
-    app.kubernetes.io/name: ingress-annotations-controller
+    app.kubernetes.io/name: ingress-annotator
     app.kubernetes.io/managed-by: kustomize
 spec:
   selector:
@@ -91,5 +91,10 @@ spec:
           requests:
             cpu: 10m
             memory: 64Mi
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10
