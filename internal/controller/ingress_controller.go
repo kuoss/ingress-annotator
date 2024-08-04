@@ -50,64 +50,51 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the Ingress object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.18.4/pkg/reconcile
 func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var ingress networkingv1.Ingress
 	if err := r.Get(ctx, req.NamespacedName, &ingress); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+
 	if ingress.Annotations[annotatorEnabledKey] != "true" {
 		return ctrl.Result{}, nil
 	}
+
 	return r.reconcileAnnotations(ctx, &ingress)
 }
 
 func (r *IngressReconciler) reconcileAnnotations(ctx context.Context, ingress *networkingv1.Ingress) (ctrl.Result, error) {
-	log := log.FromContext(ctx)
-	log = log.WithValues("namespace", ingress.Namespace, "name", ingress.Name)
+	logger := log.FromContext(ctx).WithValues("namespace", ingress.Namespace, "name", ingress.Name)
+	logger.Info("Reconciling Ingress")
 
-	log.Info("Reconciling Ingress")
 	if err := r.applyAnnotations(ctx, ingress); err != nil {
 		return ctrl.Result{}, fmt.Errorf("unable to apply annotations to Ingress: %w", err)
 	}
-	log.Info("Successfully reconciled Ingress")
+
+	logger.Info("Successfully reconciled Ingress")
 	return ctrl.Result{}, nil
 
 }
 
 func (r *IngressReconciler) applyAnnotations(ctx context.Context, ingress *networkingv1.Ingress) error {
 	data := r.RulesStore.GetData()
+
 	if shouldSkipUpdate(ingress, data.ConfigMap.ResourceVersion) {
 		return nil
 	}
 
-	// Fetch current and last applied rules from annotations
-	lastAppliedRulesValue := ingress.Annotations[annotatorLastAppliedRulesKey]
-	currentRulesValue := ingress.Annotations[annotatorRulesKey]
-
-	lastAppliedRuleNames := parseCSVToSlice(lastAppliedRulesValue)
-	currentRuleNames := parseCSVToSlice(currentRulesValue)
+	lastAppliedRuleNames := parseCSVToSlice(ingress.Annotations[annotatorLastAppliedRulesKey])
+	currentRuleNames := parseCSVToSlice(ingress.Annotations[annotatorRulesKey])
 	deletedRuleNames := findDeletedRuleNames(lastAppliedRuleNames, currentRuleNames)
 
-	// Remove annotations for deleted rules and apply annotations for current rules
 	removeAnnotations(ingress, deletedRuleNames, data.Rules)
 	applyAnnotations(ingress, currentRuleNames, data.Rules)
+	cleanupAnnotations(ingress, ingress.Annotations[annotatorRulesKey], data.ConfigMap.ResourceVersion)
 
-	// Update annotation metadata
-	delete(ingress.Annotations, annotatorReconcileNeededKey)
-	ingress.Annotations[annotatorLastAppliedRulesKey] = currentRulesValue
-	ingress.Annotations[annotatorLastAppliedVersionKey] = data.ConfigMap.ResourceVersion
-
-	// Persist changes
 	if err := r.Update(ctx, ingress); err != nil {
 		return fmt.Errorf("failed to update ingress: %w", err)
 	}
+
 	return nil
 }
 
@@ -136,21 +123,34 @@ func applyAnnotations(ingress *networkingv1.Ingress, ruleNames []string, rules r
 	}
 }
 
+func cleanupAnnotations(ingress *networkingv1.Ingress, currentRulesValue, resourceVersion string) {
+	delete(ingress.Annotations, annotatorReconcileNeededKey)
+	ingress.Annotations[annotatorLastAppliedRulesKey] = currentRulesValue
+	ingress.Annotations[annotatorLastAppliedVersionKey] = resourceVersion
+}
+
 func parseCSVToSlice(csv string) []string {
+	if csv == "" {
+		return []string{}
+	}
 	return strings.Split(csv, ",")
 }
 
 func findDeletedRuleNames(lastApplied, current []string) []string {
-	deleted := []string{}
 	lastAppliedSet := make(map[string]struct{}, len(lastApplied))
+
 	for _, rule := range lastApplied {
 		lastAppliedSet[rule] = struct{}{}
 	}
+
 	for _, rule := range current {
 		delete(lastAppliedSet, rule)
 	}
+
+	deleted := []string{}
 	for rule := range lastAppliedSet {
 		deleted = append(deleted, rule)
 	}
+
 	return deleted
 }
