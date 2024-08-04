@@ -62,7 +62,7 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err := r.Get(ctx, req.NamespacedName, &ingress); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	if ingress.Annotations[annotatorEnabledKey] == "true" {
+	if ingress.Annotations[annotatorEnabledKey] != "true" {
 		return ctrl.Result{}, nil
 	}
 	return r.reconcileAnnotations(ctx, &ingress)
