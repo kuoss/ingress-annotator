@@ -27,7 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/jmnote/ingress-annotator/pkg/rulesstore"
+	"github.com/kuoss/ingress-annotator/pkg/rulesstore"
 )
 
 // ConfigMapReconciler reconciles a ConfigMap object

@@ -24,7 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/jmnote/ingress-annotator/test/utils"
+	"github.com/kuoss/ingress-annotator/test/utils"
 )
 
 const namespace = "ingress-annotator-system"
