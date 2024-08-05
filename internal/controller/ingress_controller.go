@@ -56,7 +56,7 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if ingress.Annotations[annotatorEnabledKey] != "true" {
+	if ingress.Annotations[annotatorEnabledKey] != annotationEnabledValue {
 		return ctrl.Result{}, nil
 	}
 
@@ -99,7 +99,7 @@ func (r *IngressReconciler) applyAnnotations(ctx context.Context, ingress *netwo
 }
 
 func shouldSkipUpdate(ingress *networkingv1.Ingress, resourceVersion string) bool {
-	return ingress.Annotations[annotatorReconcileNeededKey] != "true" &&
+	return ingress.Annotations[annotatorReconcileNeededKey] != annotatorReconcileNeededValue &&
 		ingress.Annotations[annotatorLastAppliedVersionKey] == resourceVersion
 }
 

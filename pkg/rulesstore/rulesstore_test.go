@@ -37,11 +37,12 @@ func TestNew(t *testing.T) {
 }
 
 func TestNew_ErrorMissingPodNamespace(t *testing.T) {
-	os.Unsetenv("POD_NAMESPACE")
+	err := os.Unsetenv("POD_NAMESPACE")
+	assert.Error(t, err)
 
 	fakeClient := fake.NewFakeClient()
 
-	_, err := New(fakeClient)
+	_, err = New(fakeClient)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "POD_NAMESPACE environment variable is not set or is empty")
 }
@@ -112,8 +113,7 @@ func TestUpdateData_ErrorGetConfigMap(t *testing.T) {
 }
 
 func TestUpdateData_ErrorInvalidConfigMap(t *testing.T) {
-	os.Setenv("POD_NAMESPACE", "default")
-	defer os.Unsetenv("POD_NAMESPACE")
+	t.Setenv("POD_NAMESPACE", "default")
 
 	// Create a fake client with a ConfigMap that contains invalid data
 	fakeClient := fake.NewFakeClient(&corev1.ConfigMap{

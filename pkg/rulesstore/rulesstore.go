@@ -59,7 +59,11 @@ func (s *RulesStore) GetData() *Data {
 
 func (s *RulesStore) UpdateData() error {
 	var cm corev1.ConfigMap
-	if err := s.Client.Get(context.Background(), client.ObjectKey{Namespace: s.ConfigMapNamespace, Name: s.ConfigMapName}, &cm); err != nil {
+	if err := s.Client.Get(
+		context.Background(),
+		client.ObjectKey{Namespace: s.ConfigMapNamespace, Name: s.ConfigMapName},
+		&cm,
+	); err != nil {
 		return fmt.Errorf("failed to get ConfigMap: %w", err)
 	}
 	rules := Rules{}

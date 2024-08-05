@@ -7,4 +7,7 @@ const (
 	annotatorLastAppliedVersionKey = annotatorKeyPrefix + "last-applied-version"
 	annotatorReconcileNeededKey    = annotatorKeyPrefix + "reconcile-needed"
 	annotatorRulesKey              = annotatorKeyPrefix + "rules"
+
+	annotationEnabledValue        = "true"
+	annotatorReconcileNeededValue = "true"
 )
