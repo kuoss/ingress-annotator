@@ -34,7 +34,7 @@ import (
 type ConfigMapReconciler struct {
 	Client     client.Client
 	Scheme     *runtime.Scheme
-	RulesStore *rulesstore.RulesStore
+	RulesStore rulesstore.IRulesStore
 }
 
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
@@ -61,7 +61,7 @@ func (r *ConfigMapReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	logger := log.FromContext(ctx)
 	logger = logger.WithValues("namespace", req.Namespace, "name", req.Name)
 
-	if req.Namespace != r.RulesStore.ConfigMapNamespace || req.Name != r.RulesStore.ConfigMapName {
+	if req.Namespace != r.RulesStore.ConfigMapNamespace() || req.Name != r.RulesStore.ConfigMapName() {
 		return ctrl.Result{}, nil
 	}
 

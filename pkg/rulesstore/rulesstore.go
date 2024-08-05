@@ -9,6 +9,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -21,26 +22,32 @@ type Data struct {
 	Rules     Rules
 }
 
-type RulesStore struct {
-	Client             client.Client
-	ConfigMapNamespace string
-	ConfigMapName      string
-	Data               Data
-	DataMutex          *sync.Mutex
+type IRulesStore interface {
+	GetData() *Data
+	UpdateData() error
+
+	ConfigMapNamespace() string
+	ConfigMapName() string
 }
 
-func New(client client.Client) (*RulesStore, error) {
+type RulesStore struct {
+	Client    client.Client
+	Meta      types.NamespacedName
+	Data      Data
+	DataMutex *sync.Mutex
+}
+
+func New(client client.Client) (IRulesStore, error) {
 	ns, exists := os.LookupEnv("POD_NAMESPACE")
 	if !exists || ns == "" {
 		return nil, errors.New("POD_NAMESPACE environment variable is not set or is empty")
 	}
 
-	rulesStore := &RulesStore{
-		Client:             client,
-		ConfigMapNamespace: ns,
-		ConfigMapName:      configMapName,
-		Data:               Data{},
-		DataMutex:          &sync.Mutex{},
+	var rulesStore IRulesStore = &RulesStore{
+		Client:    client,
+		Meta:      types.NamespacedName{Namespace: ns, Name: configMapName},
+		Data:      Data{},
+		DataMutex: &sync.Mutex{},
 	}
 
 	if err := rulesStore.UpdateData(); err != nil {
@@ -48,6 +55,14 @@ func New(client client.Client) (*RulesStore, error) {
 	}
 
 	return rulesStore, nil
+}
+
+func (s *RulesStore) ConfigMapNamespace() string {
+	return s.Meta.Namespace
+}
+
+func (s *RulesStore) ConfigMapName() string {
+	return s.Meta.Name
 }
 
 func (s *RulesStore) GetData() *Data {
@@ -61,7 +76,7 @@ func (s *RulesStore) UpdateData() error {
 	var cm corev1.ConfigMap
 	if err := s.Client.Get(
 		context.Background(),
-		client.ObjectKey{Namespace: s.ConfigMapNamespace, Name: s.ConfigMapName},
+		client.ObjectKey{Namespace: s.ConfigMapNamespace(), Name: s.ConfigMapName()},
 		&cm,
 	); err != nil {
 		return fmt.Errorf("failed to get ConfigMap: %w", err)
