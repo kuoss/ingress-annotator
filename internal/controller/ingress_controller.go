@@ -34,7 +34,7 @@ import (
 type IngressReconciler struct {
 	client.Client
 	Scheme     *runtime.Scheme
-	RulesStore *rulesstore.RulesStore
+	RulesStore rulesstore.IRulesStore
 }
 
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete

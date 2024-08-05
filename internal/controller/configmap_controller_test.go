@@ -21,6 +21,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/api/node/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,7 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/kuoss/ingress-annotator/pkg/rulesstore"
+	fakerulesstore "github.com/kuoss/ingress-annotator/pkg/rulesstore/fake"
 )
 
 var _ = Describe("ConfigMap Controller", func() {
@@ -57,12 +58,9 @@ var _ = Describe("ConfigMap Controller", func() {
 
 			// Set up the reconciler
 			reconciler := &ConfigMapReconciler{
-				Client: fakeClient,
-				Scheme: scheme,
-				RulesStore: &rulesstore.RulesStore{ // Mock
-					ConfigMapNamespace: "default",
-					ConfigMapName:      "example-configmap",
-				},
+				Client:     fakeClient,
+				Scheme:     scheme,
+				RulesStore: &fakerulesstore.RulesStore{},
 			}
 
 			// Create a request for reconciliation
@@ -81,7 +79,9 @@ var _ = Describe("ConfigMap Controller", func() {
 			// Add more specific assertions depending on your controller's reconciliation logic
 			// Example: Verify that the data in RulesStore has been updated
 			updatedData := reconciler.RulesStore.GetData()
-			Expect(updatedData).ToNot(BeEmpty())
+
+			t := GinkgoT()
+			assert.NotEmpty(t, updatedData)
 		})
 	})
 })

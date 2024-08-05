@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
@@ -27,8 +28,8 @@ func TestNew(t *testing.T) {
 
 	rulesStore, err := New(fakeClient)
 	assert.NoError(t, err)
-	assert.Equal(t, "default", rulesStore.ConfigMapNamespace)
-	assert.Equal(t, configMapName, rulesStore.ConfigMapName)
+	assert.Equal(t, "default", rulesStore.ConfigMapNamespace())
+	assert.Equal(t, configMapName, rulesStore.ConfigMapName())
 
 	data := rulesStore.GetData()
 	assert.Equal(t, "annotation1: value1\nannotation2: value2", data.ConfigMap.Data["rule1"])
@@ -38,7 +39,7 @@ func TestNew(t *testing.T) {
 
 func TestNew_ErrorMissingPodNamespace(t *testing.T) {
 	err := os.Unsetenv("POD_NAMESPACE")
-	assert.Error(t, err)
+	assert.NoError(t, err)
 
 	fakeClient := fake.NewFakeClient()
 
@@ -100,11 +101,10 @@ func TestUpdateData_ErrorGetConfigMap(t *testing.T) {
 	fakeClient := fake.NewFakeClient()
 
 	rulesStore := &RulesStore{
-		Client:             fakeClient,
-		ConfigMapNamespace: "default",
-		ConfigMapName:      configMapName,
-		Data:               Data{},
-		DataMutex:          &sync.Mutex{},
+		Client:    fakeClient,
+		Meta:      types.NamespacedName{Namespace: "default", Name: configMapName},
+		Data:      Data{},
+		DataMutex: &sync.Mutex{},
 	}
 
 	err := rulesStore.UpdateData()
@@ -127,11 +127,10 @@ func TestUpdateData_ErrorInvalidConfigMap(t *testing.T) {
 	})
 
 	rulesStore := &RulesStore{
-		Client:             fakeClient,
-		ConfigMapNamespace: "default",
-		ConfigMapName:      configMapName,
-		Data:               Data{},
-		DataMutex:          &sync.Mutex{},
+		Client:    fakeClient,
+		Meta:      types.NamespacedName{Namespace: "default", Name: configMapName},
+		Data:      Data{},
+		DataMutex: &sync.Mutex{},
 	}
 
 	err := rulesStore.UpdateData()

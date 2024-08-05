@@ -20,9 +20,8 @@ jobs:
     - uses: actions/setup-go@v4
     - uses: actions/checkout@v3
     - run: make test
-    - run: go test ./... -coverprofile=coverprofile
     - run: go install github.com/mattn/goveralls@latest
-    - run: goveralls -coverprofile=coverage.out -service=github
+    - run: goveralls -coverprofile=cover.out -service=github
       env:
         COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
