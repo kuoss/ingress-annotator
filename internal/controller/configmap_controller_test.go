@@ -30,7 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/jmnote/ingress-annotator/pkg/rulesstore"
+	"github.com/kuoss/ingress-annotator/pkg/rulesstore"
 )
 
 var _ = Describe("ConfigMap Controller", func() {

@@ -27,7 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/jmnote/ingress-annotator/pkg/rulesstore"
+	"github.com/kuoss/ingress-annotator/pkg/rulesstore"
 )
 
 // ConfigMapReconciler reconciles a ConfigMap object
@@ -76,8 +76,8 @@ func (r *ConfigMapReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	for _, ingress := range ingressList.Items {
-		if ingress.Annotations[annotatorEnabledKey] == "true" {
-			ingress.Annotations[annotatorReconcileNeededKey] = "true"
+		if ingress.Annotations[annotatorEnabledKey] == annotationEnabledValue {
+			ingress.Annotations[annotatorReconcileNeededKey] = annotatorReconcileNeededValue
 			if err := r.Client.Update(ctx, &ingress); err != nil {
 				return ctrl.Result{}, fmt.Errorf("update ingress err: %w", err)
 			}

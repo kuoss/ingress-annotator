@@ -23,7 +23,6 @@ import (
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
-	"github.com/jmnote/ingress-annotator/pkg/rulesstore"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -36,7 +35,8 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	"github.com/jmnote/ingress-annotator/internal/controller"
+	"github.com/kuoss/ingress-annotator/internal/controller"
+	"github.com/kuoss/ingress-annotator/pkg/rulesstore"
 	// +kubebuilder:scaffold:imports
 )
 

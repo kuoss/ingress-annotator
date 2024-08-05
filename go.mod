@@ -1,4 +1,4 @@
-module github.com/jmnote/ingress-annotator
+module github.com/kuoss/ingress-annotator
 
 go 1.22.0
 

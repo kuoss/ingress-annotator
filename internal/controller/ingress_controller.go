@@ -27,7 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/jmnote/ingress-annotator/pkg/rulesstore"
+	"github.com/kuoss/ingress-annotator/pkg/rulesstore"
 )
 
 // IngressReconciler reconciles a Ingress object
@@ -56,7 +56,7 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if ingress.Annotations[annotatorEnabledKey] != "true" {
+	if ingress.Annotations[annotatorEnabledKey] != annotationEnabledValue {
 		return ctrl.Result{}, nil
 	}
 
@@ -99,7 +99,7 @@ func (r *IngressReconciler) applyAnnotations(ctx context.Context, ingress *netwo
 }
 
 func shouldSkipUpdate(ingress *networkingv1.Ingress, resourceVersion string) bool {
-	return ingress.Annotations[annotatorReconcileNeededKey] != "true" &&
+	return ingress.Annotations[annotatorReconcileNeededKey] != annotatorReconcileNeededValue &&
 		ingress.Annotations[annotatorLastAppliedVersionKey] == resourceVersion
 }
 
