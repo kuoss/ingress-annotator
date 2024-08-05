@@ -20,7 +20,6 @@ import (
 	"context"
 
 	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/api/node/v1alpha1"
@@ -38,6 +37,7 @@ var _ = Describe("ConfigMap Controller", func() {
 	Context("When reconciling a resource", func() {
 
 		It("should successfully reconcile the resource", func() {
+			t := GinkgoT()
 
 			// Create a fake client with initial state
 			scheme := runtime.NewScheme()
@@ -54,7 +54,7 @@ var _ = Describe("ConfigMap Controller", func() {
 				},
 			}
 			err := fakeClient.Create(context.TODO(), cm)
-			Expect(err).NotTo(HaveOccurred())
+			assert.NoError(t, err)
 
 			// Set up the reconciler
 			reconciler := &ConfigMapReconciler{
@@ -73,14 +73,12 @@ var _ = Describe("ConfigMap Controller", func() {
 
 			// Invoke the Reconcile method
 			result, err := reconciler.Reconcile(context.TODO(), req)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result).To(Equal(ctrl.Result{}))
+			assert.NoError(t, err)
+			assert.Equal(t, ctrl.Result{}, result)
 
 			// Add more specific assertions depending on your controller's reconciliation logic
 			// Example: Verify that the data in RulesStore has been updated
 			updatedData := reconciler.RulesStore.GetData()
-
-			t := GinkgoT()
 			assert.NotEmpty(t, updatedData)
 		})
 	})
