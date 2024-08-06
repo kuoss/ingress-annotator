@@ -9,6 +9,8 @@
 - **Wildcard Support**: Use wildcard patterns to match namespaces and ingress names.
 
 ## Usage
+1. Create a ConfigMap with your annotation rules:
+
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -45,6 +47,15 @@ spec:
       nginx.ingress.kubernetes.io/whitelist-source-range: "192.168.1.0/24,10.0.0.0/16"
     namespace: "dev*"
     ingress: "*-priv"
+```
+2. Apply the ConfigMap:
+```
+kubectl apply -f configmap.yaml
+```
+
+3. Verify that the annotations are applied to the specified ingress resources:
+```
+kubectl describe ingress <ingress-name> -n <namespace>
 ```
 
 ### Code of Conduct
