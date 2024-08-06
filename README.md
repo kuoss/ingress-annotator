@@ -15,27 +15,31 @@ kind: ConfigMap
 metadata:
   name: ingress-annotator-rules
 spec:
-  # Rule to set proxy body size limit to 8MB for ingress resources in namespace prod1
+  # Rule to set proxy body size limit to 8MB for ingress resources 
+  # in namespace prod1
   proxy-body-size: |
     annotations:
       ingress.kubernetes.io/proxy-body-size: "8m"
     namespace: "prod1"
     
-  # Rule to rewrite the request URI to "/" for the specific ingress resource named ingress1 in namespace prod2
+  # Rule to rewrite the request URI to "/" for the specific ingress 
+  # resource named ingress1 in namespace prod2
   rewrite-target: |
     annotations:
       ingress.kubernetes.io/rewrite-target: "/"
     namespace: "prod2"
     ingress: "ingress1"
 
-  # Rule to configure OAuth2 authentication for ingress resources in namespaces dev1 and dev2
+  # Rule to configure OAuth2 authentication for ingress resources 
+  # in namespaces dev1 and dev2
   oauth2-proxy: |
     annotations:
       nginx.ingress.kubernetes.io/auth-signin: "https://oauth2-proxy.example.com/oauth2/start?rd=https://$host$request_uri"
       nginx.ingress.kubernetes.io/auth-url: "https://oauth2-proxy.example.com//oauth2/auth"
     namespace: "dev1,dev2"
 
-  # Rule to set a whitelist of source IP ranges for ingress resources with names ending in "-priv" in namespaces that start with "dev"
+  # Rule to set a whitelist of source IP ranges for ingress resources with 
+  # names ending in "-priv" in namespaces that start with "dev"
   private: |
     annotations:
       nginx.ingress.kubernetes.io/whitelist-source-range: "192.168.1.0/24,10.0.0.0/16"
