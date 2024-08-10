@@ -267,7 +267,7 @@ func TestReconcile(t *testing.T) {
 	}
 }
 
-func TestGetExpectedAnnotations(t *testing.T) {
+func TestGetManagedAnnotations(t *testing.T) {
 	testCases := []struct {
 		rules   model.Rules
 		ingress networkingv1.Ingress
@@ -368,8 +368,8 @@ func TestGetExpectedAnnotations(t *testing.T) {
 				Scheme: newScheme(),
 			}
 
-			annotations := r.getExpectedAnnotations(ctx)
-			assert.Equal(t, tc.want, annotations)
+			got := r.getNewManagedAnnotations(ctx)
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }
@@ -377,14 +377,14 @@ func TestGetExpectedAnnotations(t *testing.T) {
 func TestUpdateAnnotations(t *testing.T) {
 
 	testCases := []struct {
-		name                string
-		initialAnnotations  map[string]string
-		annotationsToRemove map[string]string
-		annotationsToApply  map[string]string
-		expectedAnnotations map[string]string
-		wantResult          map[string]string
-		badClient1          bool
-		wantError           string
+		name                  string
+		initialAnnotations    map[string]string
+		annotationsToRemove   map[string]string
+		annotationsToApply    map[string]string
+		newManagedAnnotations map[string]string
+		wantResult            map[string]string
+		badClient1            bool
+		wantError             string
 	}{
 		{
 			name: "Remove and apply annotations successfully",
@@ -392,9 +392,9 @@ func TestUpdateAnnotations(t *testing.T) {
 				"annotation1": "value1",
 				"annotation2": "value2",
 			},
-			annotationsToRemove: map[string]string{"annotation1": ""},
-			annotationsToApply:  map[string]string{"annotation3": "value3"},
-			expectedAnnotations: map[string]string{"annotation3": "value3"},
+			annotationsToRemove:   map[string]string{"annotation1": ""},
+			annotationsToApply:    map[string]string{"annotation3": "value3"},
+			newManagedAnnotations: map[string]string{"annotation3": "value3"},
 			wantResult: map[string]string{
 				"annotation2": "value2",
 				"annotation3": "value3",
@@ -406,9 +406,9 @@ func TestUpdateAnnotations(t *testing.T) {
 			initialAnnotations: map[string]string{
 				"annotation1": "value1",
 			},
-			annotationsToRemove: map[string]string{},
-			annotationsToApply:  map[string]string{"annotation2": "value2"},
-			expectedAnnotations: map[string]string{"annotation2": "value2"},
+			annotationsToRemove:   map[string]string{},
+			annotationsToApply:    map[string]string{"annotation2": "value2"},
+			newManagedAnnotations: map[string]string{"annotation2": "value2"},
 			wantResult: map[string]string{
 				"annotation1": "value1",
 				"annotation2": "value2",
@@ -425,10 +425,10 @@ func TestUpdateAnnotations(t *testing.T) {
 				"annotation1": "",
 				"annotation2": "",
 			},
-			annotationsToApply:  map[string]string{},
-			expectedAnnotations: map[string]string{},
-			wantResult:          map[string]string{},
-			wantError:           "",
+			annotationsToApply:    map[string]string{},
+			newManagedAnnotations: map[string]string{},
+			wantResult:            map[string]string{},
+			wantError:             "",
 		},
 		{
 			name: "Remove all annotations",
@@ -440,10 +440,10 @@ func TestUpdateAnnotations(t *testing.T) {
 				"annotation1": "",
 				"annotation2": "",
 			},
-			annotationsToApply:  map[string]string{},
-			expectedAnnotations: map[string]string{"": ""},
-			wantResult:          map[string]string{},
-			wantError:           "",
+			annotationsToApply:    map[string]string{},
+			newManagedAnnotations: map[string]string{"": ""},
+			wantResult:            map[string]string{},
+			wantError:             "",
 		},
 		{
 			name: "Bad client",
@@ -455,11 +455,11 @@ func TestUpdateAnnotations(t *testing.T) {
 				"annotation1": "",
 				"annotation2": "",
 			},
-			annotationsToApply:  map[string]string{},
-			expectedAnnotations: map[string]string{},
-			wantResult:          map[string]string{},
-			badClient1:          true,
-			wantError:           "failed to update ingress: Update operation is disabled in this fake client",
+			annotationsToApply:    map[string]string{},
+			newManagedAnnotations: map[string]string{},
+			wantResult:            map[string]string{},
+			badClient1:            true,
+			wantError:             "failed to update ingress: Update operation is disabled in this fake client",
 		},
 	}
 
@@ -498,7 +498,7 @@ func TestUpdateAnnotations(t *testing.T) {
 			}
 
 			// Call the function
-			err := r.updateAnnotations(ingressCtx, tc.annotationsToRemove, tc.annotationsToApply, tc.expectedAnnotations)
+			err := r.updateAnnotations(ingressCtx, tc.annotationsToRemove, tc.annotationsToApply, tc.newManagedAnnotations)
 
 			// Check for errors if expected
 			if tc.wantError != "" {
@@ -524,37 +524,37 @@ func TestUpdateAnnotations(t *testing.T) {
 			}
 
 			// Verify managed annotations are correctly set
-			managedAnnotationsBytes, err := json.Marshal(tc.expectedAnnotations)
+			newManagedAnnotationsBytes, err := json.Marshal(tc.newManagedAnnotations)
 			assert.NoError(t, err)
-			assert.Equal(t, string(managedAnnotationsBytes), updatedIngress.Annotations["annotator.ingress.kubernetes.io/managed-annotations"])
+			assert.Equal(t, string(newManagedAnnotationsBytes), updatedIngress.Annotations["annotator.ingress.kubernetes.io/managed-annotations"])
 		})
 	}
 }
 
 func TestGetAnnotationsToRemove(t *testing.T) {
 	testCases := []struct {
-		name                string
-		ingressAnnotations  model.Annotations
-		expectedAnnotations model.Annotations
-		wantResult          model.Annotations
-		wantError           string
+		name               string
+		ingressAnnotations model.Annotations
+		managedAnnotations model.Annotations
+		wantResult         model.Annotations
+		wantError          string
 	}{
 		{
 			name:               "No managed annotations exist",
 			ingressAnnotations: model.Annotations{},
-			expectedAnnotations: model.Annotations{
+			managedAnnotations: model.Annotations{
 				"example.com/key1": "value1",
 			},
 			wantResult: nil,
 			wantError:  "",
 		},
 		{
-			name: "Managed annotations exist and match, but not expected anymore",
+			name: "Managed annotations exist and match, but not managed anymore",
 			ingressAnnotations: model.Annotations{
 				"annotator.ingress.kubernetes.io/managed-annotations": `{"example.com/key1":"value1"}`,
 				"example.com/key1": "value1",
 			},
-			expectedAnnotations: model.Annotations{
+			managedAnnotations: model.Annotations{
 				"example.com/key2": "value2",
 			},
 			wantResult: model.Annotations{
@@ -563,12 +563,12 @@ func TestGetAnnotationsToRemove(t *testing.T) {
 			wantError: "",
 		},
 		{
-			name: "Managed annotations exist but expected",
+			name: "Managed annotations exist but new managed",
 			ingressAnnotations: model.Annotations{
 				"annotator.ingress.kubernetes.io/managed-annotations": `{"example.com/key1":"value1"}`,
 				"example.com/key1": "value1",
 			},
-			expectedAnnotations: model.Annotations{
+			managedAnnotations: model.Annotations{
 				"example.com/key1": "value1",
 			},
 			wantResult: model.Annotations{},
@@ -580,18 +580,18 @@ func TestGetAnnotationsToRemove(t *testing.T) {
 				"annotator.ingress.kubernetes.io/managed-annotations": `{"example.com/key1":"value1"}`,
 				"example.com/key1": "different_value",
 			},
-			expectedAnnotations: model.Annotations{},
-			wantResult:          model.Annotations{},
-			wantError:           "",
+			managedAnnotations: model.Annotations{},
+			wantResult:         model.Annotations{},
+			wantError:          "",
 		},
 		{
 			name: "Invalid JSON in managed annotations",
 			ingressAnnotations: model.Annotations{
 				"annotator.ingress.kubernetes.io/managed-annotations": "invalid-json",
 			},
-			expectedAnnotations: model.Annotations{},
-			wantResult:          nil,
-			wantError:           "failed to unmarshal managed annotations: invalid character 'i' looking for beginning of value",
+			managedAnnotations: model.Annotations{},
+			wantResult:         nil,
+			wantError:          "failed to unmarshal managed annotations: invalid character 'i' looking for beginning of value",
 		},
 	}
 
@@ -612,7 +612,7 @@ func TestGetAnnotationsToRemove(t *testing.T) {
 			r := &IngressReconciler{
 				Client: client,
 			}
-			result, err := r.getAnnotationsToRemove(ctx, tc.expectedAnnotations)
+			result, err := r.getAnnotationsToRemove(ctx, tc.managedAnnotations)
 
 			if tc.wantError != "" {
 				assert.Error(t, err)

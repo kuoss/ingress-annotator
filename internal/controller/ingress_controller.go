@@ -77,14 +77,14 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		rules:   r.RulesStore.GetRules(),
 	}
 
-	expectedAnnotations := r.getExpectedAnnotations(ingressCtx)
+	newManagedAnnotations := r.getNewManagedAnnotations(ingressCtx)
 
-	annotationsToRemove, warn := r.getAnnotationsToRemove(ingressCtx, expectedAnnotations)
+	annotationsToRemove, warn := r.getAnnotationsToRemove(ingressCtx, newManagedAnnotations)
 	if warn != nil {
 		ingressCtx.logger.Info("failed to calculate annotations to remove: %v", warn)
 	}
 
-	annotationsToApply := r.getAnnotationsToApply(ingressCtx, expectedAnnotations)
+	annotationsToApply := r.getAnnotationsToApply(ingressCtx, newManagedAnnotations)
 
 	// If no changes are required, return early
 	if len(annotationsToRemove) == 0 && len(annotationsToApply) == 0 {
@@ -92,16 +92,16 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// Handle annotation updates
-	if err := r.updateAnnotations(ingressCtx, annotationsToRemove, annotationsToApply, expectedAnnotations); err != nil {
+	if err := r.updateAnnotations(ingressCtx, annotationsToRemove, annotationsToApply, newManagedAnnotations); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to update ingress annotations: %w", err)
 	}
 
 	return ctrl.Result{}, nil
 }
 
-func (r *IngressReconciler) getExpectedAnnotations(ctx *IngressContext) model.Annotations {
+func (r *IngressReconciler) getNewManagedAnnotations(ctx *IngressContext) model.Annotations {
 	ingress := ctx.ingress
-	expectedAnnotations := model.Annotations{}
+	newManagedAnnotations := model.Annotations{}
 
 	for key, rule := range *ctx.rules {
 		if matched, err := filepath.Match(rule.Namespace, ingress.Namespace); err != nil {
@@ -122,15 +122,15 @@ func (r *IngressReconciler) getExpectedAnnotations(ctx *IngressContext) model.An
 
 		// Apply annotations from the matched rule
 		for key, value := range rule.Annotations {
-			expectedAnnotations[key] = value
+			newManagedAnnotations[key] = value
 		}
 	}
 
-	return expectedAnnotations
+	return newManagedAnnotations
 }
 
 // updateAnnotations applies the calculated annotations to the Ingress resource.
-func (r *IngressReconciler) updateAnnotations(ingressCtx *IngressContext, annotationsToRemove, annotationsToApply, expectedAnnotations model.Annotations) error {
+func (r *IngressReconciler) updateAnnotations(ingressCtx *IngressContext, annotationsToRemove, annotationsToApply, newManagedAnnotations model.Annotations) error {
 	ingress := ingressCtx.ingress
 
 	for key := range annotationsToRemove {
@@ -141,12 +141,12 @@ func (r *IngressReconciler) updateAnnotations(ingressCtx *IngressContext, annota
 		ingress.Annotations[key] = value
 	}
 
-	managedAnnotationsBytes, err := json.Marshal(expectedAnnotations)
+	newManagedAnnotationsBytes, err := json.Marshal(newManagedAnnotations)
 	if err != nil {
-		return fmt.Errorf("failed to marshal expected annotations: %w", err) // test unreachable
+		return fmt.Errorf("failed to marshal new managed annotations: %w", err) // test unreachable
 	}
 
-	ingress.Annotations[managedAnnotationsKey] = string(managedAnnotationsBytes)
+	ingress.Annotations[managedAnnotationsKey] = string(newManagedAnnotationsBytes)
 
 	// Update the Ingress with the new annotations
 	if err := r.Update(ingressCtx.ctx, &ingress); err != nil {
@@ -157,22 +157,22 @@ func (r *IngressReconciler) updateAnnotations(ingressCtx *IngressContext, annota
 	return nil
 }
 
-func (r *IngressReconciler) getAnnotationsToRemove(ctx *IngressContext, expectedAnnotations model.Annotations) (model.Annotations, error) {
-	managedAnnotationsValue, exists := ctx.ingress.Annotations[managedAnnotationsKey]
+func (r *IngressReconciler) getAnnotationsToRemove(ctx *IngressContext, newManagedAnnotations model.Annotations) (model.Annotations, error) {
+	oldManagedAnnotationsValue, exists := ctx.ingress.Annotations[managedAnnotationsKey]
 	if !exists {
 		return nil, nil
 	}
 
-	managedAnnotations := model.Annotations{}
-	if err := json.Unmarshal([]byte(managedAnnotationsValue), &managedAnnotations); err != nil {
+	oldManagedAnnotations := model.Annotations{}
+	if err := json.Unmarshal([]byte(oldManagedAnnotationsValue), &oldManagedAnnotations); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal managed annotations: %w", err)
 	}
 
 	annotationsToRemove := model.Annotations{}
-	for key, value := range managedAnnotations {
-		// Remove only if the current value matches and it's not expected anymore
+	for key, value := range oldManagedAnnotations {
+		// Remove only if the current value matches and it's not managed anymore
 		if currentValue, exists := ctx.ingress.Annotations[key]; exists && currentValue == value {
-			if _, exists := expectedAnnotations[key]; !exists {
+			if _, exists := newManagedAnnotations[key]; !exists {
 				annotationsToRemove[key] = value
 			}
 		}
@@ -180,9 +180,9 @@ func (r *IngressReconciler) getAnnotationsToRemove(ctx *IngressContext, expected
 	return annotationsToRemove, nil
 }
 
-func (r *IngressReconciler) getAnnotationsToApply(ctx *IngressContext, expectedAnnotations model.Annotations) model.Annotations {
+func (r *IngressReconciler) getAnnotationsToApply(ctx *IngressContext, newManagedAnnotations model.Annotations) model.Annotations {
 	annotationsToApply := model.Annotations{}
-	for key, value := range expectedAnnotations {
+	for key, value := range newManagedAnnotations {
 		if currentValue, exists := ctx.ingress.Annotations[key]; !exists || currentValue != value {
 			annotationsToApply[key] = value
 		}
