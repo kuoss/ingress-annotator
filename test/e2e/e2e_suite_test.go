@@ -26,6 +26,10 @@ import (
 
 // Run e2e tests using the Ginkgo runner.
 func TestE2E(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode.")
+	}
+
 	RegisterFailHandler(Fail)
 	_, _ = fmt.Fprintf(GinkgoWriter, "Starting ingress-annotator suite\n")
 	RunSpecs(t, "e2e suite")

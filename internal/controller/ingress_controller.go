@@ -18,8 +18,9 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"strings"
+	"path/filepath"
 
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -27,8 +28,21 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/go-logr/logr"
+	"github.com/kuoss/ingress-annotator/pkg/model"
 	"github.com/kuoss/ingress-annotator/pkg/rulesstore"
 )
+
+const (
+	managedAnnotationsKey = "annotator.ingress.kubernetes.io/managed-annotations"
+)
+
+type IngressContext struct {
+	ctx     context.Context
+	logger  logr.Logger
+	ingress networkingv1.Ingress
+	rules   *model.Rules
+}
 
 // IngressReconciler reconciles a Ingress object
 type IngressReconciler struct {
@@ -56,101 +70,122 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if ingress.Annotations[annotatorEnabledKey] != annotationEnabledValue {
+	ingressCtx := &IngressContext{
+		ctx:     ctx,
+		logger:  log.FromContext(ctx).WithValues("kind", "ingress", "namespace", ingress.Namespace, "name", ingress.Name).WithCallDepth(1),
+		ingress: ingress,
+		rules:   r.RulesStore.GetRules(),
+	}
+
+	newManagedAnnotations := r.getNewManagedAnnotations(ingressCtx)
+
+	annotationsToRemove, warn := r.getAnnotationsToRemove(ingressCtx, newManagedAnnotations)
+	if warn != nil {
+		ingressCtx.logger.Info("failed to calculate annotations to remove: %v", warn)
+	}
+
+	annotationsToApply := r.getAnnotationsToApply(ingressCtx, newManagedAnnotations)
+
+	// If no changes are required, return early
+	if len(annotationsToRemove) == 0 && len(annotationsToApply) == 0 {
 		return ctrl.Result{}, nil
 	}
 
-	return r.reconcileAnnotations(ctx, &ingress)
-}
-
-func (r *IngressReconciler) reconcileAnnotations(ctx context.Context, ingress *networkingv1.Ingress) (ctrl.Result, error) {
-	logger := log.FromContext(ctx).WithValues("namespace", ingress.Namespace, "name", ingress.Name)
-	logger.Info("Reconciling Ingress")
-
-	if err := r.applyAnnotations(ctx, ingress); err != nil {
-		return ctrl.Result{}, fmt.Errorf("unable to apply annotations to Ingress: %w", err)
+	// Handle annotation updates
+	if err := r.updateAnnotations(ingressCtx, annotationsToRemove, annotationsToApply, newManagedAnnotations); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to update ingress annotations: %w", err)
 	}
 
-	logger.Info("Successfully reconciled Ingress")
 	return ctrl.Result{}, nil
-
 }
 
-func (r *IngressReconciler) applyAnnotations(ctx context.Context, ingress *networkingv1.Ingress) error {
-	data := r.RulesStore.GetData()
+func (r *IngressReconciler) getNewManagedAnnotations(ctx *IngressContext) model.Annotations {
+	ingress := ctx.ingress
+	newManagedAnnotations := model.Annotations{}
 
-	if shouldSkipUpdate(ingress, data.ConfigMap.ResourceVersion) {
-		return nil
+	for key, rule := range *ctx.rules {
+		if matched, err := filepath.Match(rule.Namespace, ingress.Namespace); err != nil {
+			ctx.logger.Error(err, "failed to match namespace", "key", key, "namespace", rule.Namespace)
+			continue
+		} else if !matched {
+			continue
+		}
+
+		if ingress.Name != "" {
+			if matched, err := filepath.Match(rule.Ingress, ingress.Name); err != nil {
+				ctx.logger.Error(err, "failed to match ingress name", "key", key, "ingress", rule.Ingress)
+				continue
+			} else if !matched {
+				continue
+			}
+		}
+
+		// Apply annotations from the matched rule
+		for key, value := range rule.Annotations {
+			newManagedAnnotations[key] = value
+		}
 	}
 
-	lastAppliedRuleNames := parseCSVToSlice(ingress.Annotations[annotatorLastAppliedRulesKey])
-	currentRuleNames := parseCSVToSlice(ingress.Annotations[annotatorRulesKey])
-	deletedRuleNames := findDeletedRuleNames(lastAppliedRuleNames, currentRuleNames)
+	return newManagedAnnotations
+}
 
-	removeAnnotations(ingress, deletedRuleNames, data.Rules)
-	applyAnnotations(ingress, currentRuleNames, data.Rules)
-	cleanupAnnotations(ingress, ingress.Annotations[annotatorRulesKey], data.ConfigMap.ResourceVersion)
+// updateAnnotations applies the calculated annotations to the Ingress resource.
+func (r *IngressReconciler) updateAnnotations(ingressCtx *IngressContext, annotationsToRemove, annotationsToApply, newManagedAnnotations model.Annotations) error {
+	ingress := ingressCtx.ingress
 
-	if err := r.Update(ctx, ingress); err != nil {
+	for key := range annotationsToRemove {
+		delete(ingress.Annotations, key)
+	}
+
+	for key, value := range annotationsToApply {
+		ingress.Annotations[key] = value
+	}
+
+	newManagedAnnotationsBytes, err := json.Marshal(newManagedAnnotations)
+	if err != nil {
+		return fmt.Errorf("failed to marshal new managed annotations: %w", err) // test unreachable
+	}
+
+	ingress.Annotations[managedAnnotationsKey] = string(newManagedAnnotationsBytes)
+
+	// Update the Ingress with the new annotations
+	if err := r.Update(ingressCtx.ctx, &ingress); err != nil {
 		return fmt.Errorf("failed to update ingress: %w", err)
 	}
 
+	ingressCtx.logger.Info("Successfully updated ingress annotations")
 	return nil
 }
 
-func shouldSkipUpdate(ingress *networkingv1.Ingress, resourceVersion string) bool {
-	return ingress.Annotations[annotatorReconcileNeededKey] != annotatorReconcileNeededValue &&
-		ingress.Annotations[annotatorLastAppliedVersionKey] == resourceVersion
-}
+func (r *IngressReconciler) getAnnotationsToRemove(ctx *IngressContext, newManagedAnnotations model.Annotations) (model.Annotations, error) {
+	oldManagedAnnotationsValue, exists := ctx.ingress.Annotations[managedAnnotationsKey]
+	if !exists {
+		return nil, nil
+	}
 
-func removeAnnotations(ingress *networkingv1.Ingress, ruleNames []string, rules rulesstore.Rules) {
-	for _, ruleName := range ruleNames {
-		if annotations, exists := rules[ruleName]; exists {
-			for key := range annotations {
-				delete(ingress.Annotations, key)
+	oldManagedAnnotations := model.Annotations{}
+	if err := json.Unmarshal([]byte(oldManagedAnnotationsValue), &oldManagedAnnotations); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal managed annotations: %w", err)
+	}
+
+	annotationsToRemove := model.Annotations{}
+	for key, value := range oldManagedAnnotations {
+		// Remove only if the current value matches and it's not managed anymore
+		if currentValue, exists := ctx.ingress.Annotations[key]; exists && currentValue == value {
+			if _, exists := newManagedAnnotations[key]; !exists {
+				annotationsToRemove[key] = value
 			}
 		}
 	}
+	return annotationsToRemove, nil
 }
 
-func applyAnnotations(ingress *networkingv1.Ingress, ruleNames []string, rules rulesstore.Rules) {
-	for _, ruleName := range ruleNames {
-		if annotations, exists := rules[ruleName]; exists {
-			for key, value := range annotations {
-				ingress.Annotations[key] = value
-			}
+func (r *IngressReconciler) getAnnotationsToApply(ctx *IngressContext, newManagedAnnotations model.Annotations) model.Annotations {
+	annotationsToApply := model.Annotations{}
+	for key, value := range newManagedAnnotations {
+		if currentValue, exists := ctx.ingress.Annotations[key]; !exists || currentValue != value {
+			annotationsToApply[key] = value
 		}
 	}
-}
-
-func cleanupAnnotations(ingress *networkingv1.Ingress, currentRulesValue, resourceVersion string) {
-	delete(ingress.Annotations, annotatorReconcileNeededKey)
-	ingress.Annotations[annotatorLastAppliedRulesKey] = currentRulesValue
-	ingress.Annotations[annotatorLastAppliedVersionKey] = resourceVersion
-}
-
-func parseCSVToSlice(csv string) []string {
-	if csv == "" {
-		return []string{}
-	}
-	return strings.Split(csv, ",")
-}
-
-func findDeletedRuleNames(lastApplied, current []string) []string {
-	lastAppliedSet := make(map[string]struct{}, len(lastApplied))
-
-	for _, rule := range lastApplied {
-		lastAppliedSet[rule] = struct{}{}
-	}
-
-	for _, rule := range current {
-		delete(lastAppliedSet, rule)
-	}
-
-	deleted := []string{}
-	for rule := range lastAppliedSet {
-		deleted = append(deleted, rule)
-	}
-
-	return deleted
+	return annotationsToApply
 }
