@@ -143,12 +143,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	rulesStore, err := rulesstore.New(mgr.GetClient())
-	if err != nil {
-		setupLog.Error(err, "unable to create rules store")
-		os.Exit(1)
-	}
-
+	rulesStore := rulesstore.New()
 	if err = (&controller.ConfigMapReconciler{
 		Client:     mgr.GetClient(),
 		Scheme:     mgr.GetScheme(),

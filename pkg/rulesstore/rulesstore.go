@@ -1,111 +1,60 @@
 package rulesstore
 
 import (
-	"context"
-	"errors"
 	"fmt"
-	"os"
 	"sync"
 
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/kuoss/ingress-annotator/pkg/model"
 )
 
-type Annotations map[string]string
-
-type Rules map[string]Annotations
-
-type Data struct {
-	ConfigMap corev1.ConfigMap
-	Rules     Rules
-}
-
 type IRulesStore interface {
-	GetData() *Data
-	UpdateData() error
-
-	ConfigMapNamespace() string
-	ConfigMapName() string
+	GetRules() *model.Rules
+	UpdateRules(cm *corev1.ConfigMap) error
 }
 
 type RulesStore struct {
-	Client    client.Client
-	Meta      types.NamespacedName
-	Data      Data
-	DataMutex *sync.Mutex
+	Rules      *model.Rules
+	rulesMutex *sync.Mutex
 }
 
-func New(client client.Client) (IRulesStore, error) {
-	ns, exists := os.LookupEnv("POD_NAMESPACE")
-	if !exists || ns == "" {
-		return nil, errors.New("POD_NAMESPACE environment variable is not set or is empty")
+func New() *RulesStore {
+	return &RulesStore{
+		rulesMutex: &sync.Mutex{},
 	}
-
-	var rulesStore IRulesStore = &RulesStore{
-		Client:    client,
-		Meta:      types.NamespacedName{Namespace: ns, Name: configMapName},
-		Data:      Data{},
-		DataMutex: &sync.Mutex{},
-	}
-
-	if err := rulesStore.UpdateData(); err != nil {
-		return nil, fmt.Errorf("update data error: %w", err)
-	}
-
-	return rulesStore, nil
 }
 
-func (s *RulesStore) ConfigMapNamespace() string {
-	return s.Meta.Namespace
+func (s *RulesStore) GetRules() *model.Rules {
+	s.rulesMutex.Lock()
+	defer s.rulesMutex.Unlock()
+
+	return s.Rules
 }
 
-func (s *RulesStore) ConfigMapName() string {
-	return s.Meta.Name
-}
-
-func (s *RulesStore) GetData() *Data {
-	s.DataMutex.Lock()
-	defer s.DataMutex.Unlock()
-
-	return &s.Data
-}
-
-func (s *RulesStore) UpdateData() error {
-	var cm corev1.ConfigMap
-	if err := s.Client.Get(
-		context.Background(),
-		client.ObjectKey{Namespace: s.ConfigMapNamespace(), Name: s.ConfigMapName()},
-		&cm,
-	); err != nil {
-		return fmt.Errorf("failed to get ConfigMap: %w", err)
-	}
-	rules := Rules{}
+func (s *RulesStore) UpdateRules(cm *corev1.ConfigMap) error {
+	newRules := model.Rules{}
 	for key, text := range cm.Data {
-		annotations, err := getAnnotationsFromText(text)
+		value, err := getRuleValueFromText(text)
 		if err != nil {
 			return fmt.Errorf("invalid data in ConfigMap key %s: %w", key, err)
 		}
-		rules[key] = annotations
+		newRules[key] = *value
 	}
 
-	s.DataMutex.Lock()
-	defer s.DataMutex.Unlock()
+	s.rulesMutex.Lock()
+	defer s.rulesMutex.Unlock()
 
-	s.Data = Data{
-		ConfigMap: cm,
-		Rules:     rules,
-	}
-
+	s.Rules = &newRules
 	return nil
 }
 
-func getAnnotationsFromText(text string) (Annotations, error) {
-	annotations := make(Annotations)
-	err := yaml.Unmarshal([]byte(text), &annotations)
+func getRuleValueFromText(text string) (*model.Rule, error) {
+	var rule model.Rule
+	err := yaml.Unmarshal([]byte(text), &rule)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal YAML: %v", err)
 	}
-	return annotations, nil
+	return &rule, nil
 }

@@ -1,85 +1,228 @@
-/*
-Copyright 2024.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package controller
 
 import (
 	"context"
+	"testing"
 
-	. "github.com/onsi/ginkgo/v2"
+	"github.com/jmnote/tester"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/api/node/v1alpha1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	fakerulesstore "github.com/kuoss/ingress-annotator/pkg/rulesstore/fake"
+	"github.com/kuoss/ingress-annotator/pkg/rulesstore"
 )
 
-var _ = Describe("ConfigMap Controller", func() {
-	Context("When reconciling a resource", func() {
-
-		It("should successfully reconcile the resource", func() {
-			t := GinkgoT()
-
-			// Create a fake client with initial state
-			scheme := runtime.NewScheme()
-			_ = corev1.AddToScheme(scheme)
-			_ = v1alpha1.AddToScheme(scheme) // Add your custom resources to scheme if any
-
-			fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
-
-			// Create a ConfigMap to be reconciled
-			cm := &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "example-configmap",
-					Namespace: "default",
+func TestConfigMapReconciler_SetupWithManager(t *testing.T) {
+	testCases := []struct {
+		name         string
+		namespaceEnv string
+		objects      []client.Object
+		wantError    string
+	}{
+		{
+			name:         "missing POD_NAMESPACE",
+			namespaceEnv: "",
+			objects:      []client.Object{},
+			wantError:    "POD_NAMESPACE environment variable is not set or is empty",
+		},
+		{
+			name:         "successful setup",
+			namespaceEnv: "default",
+			objects: []client.Object{
+				&corev1.ConfigMap{
+					ObjectMeta: ctrl.ObjectMeta{
+						Name:      "ingress-annotator-rules",
+						Namespace: "default",
+					},
+					Data: map[string]string{
+						"rule1": "invalid",
+					},
 				},
-			}
-			err := fakeClient.Create(context.TODO(), cm)
-			assert.NoError(t, err)
+			},
+			wantError: "yaml: unmarshal errors",
+		},
+		{
+			name:         "successful setup 1",
+			namespaceEnv: "default",
+			objects: []client.Object{
+				&corev1.ConfigMap{
+					ObjectMeta: ctrl.ObjectMeta{
+						Name:      "ingress-annotator-rules",
+						Namespace: "default",
+					},
+				},
+			},
+			wantError: "",
+		},
+		{
+			name:         "successful setup 2",
+			namespaceEnv: "default",
+			objects: []client.Object{
+				&corev1.ConfigMap{
+					ObjectMeta: ctrl.ObjectMeta{
+						Name:      "ingress-annotator-rules",
+						Namespace: "default",
+					},
+					Data: map[string]string{
+						"rule1": "annotations:\n  key1: value1\nnamespace: test-namespace\ningress: test-ingress",
+					},
+				},
+			},
+			wantError: "",
+		},
+	}
 
-			// Set up the reconciler
+	for i, tc := range testCases {
+		t.Run(tester.Name(i, tc.name), func(t *testing.T) {
+			t.Setenv("POD_NAMESPACE", tc.namespaceEnv)
+
 			reconciler := &ConfigMapReconciler{
-				Client:     fakeClient,
-				Scheme:     scheme,
-				RulesStore: &fakerulesstore.RulesStore{},
+				Client:     newFakeClient(tc.objects...),
+				Scheme:     newScheme(),
+				RulesStore: rulesstore.New(),
 			}
 
-			// Create a request for reconciliation
-			req := reconcile.Request{
-				NamespacedName: types.NamespacedName{
-					Namespace: "default",
-					Name:      "example-configmap",
-				},
-			}
-
-			// Invoke the Reconcile method
-			result, err := reconciler.Reconcile(context.TODO(), req)
+			mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+				Scheme: newScheme(),
+			})
 			assert.NoError(t, err)
-			assert.Equal(t, ctrl.Result{}, result)
 
-			// Add more specific assertions depending on your controller's reconciliation logic
-			// Example: Verify that the data in RulesStore has been updated
-			updatedData := reconciler.RulesStore.GetData()
-			assert.NotEmpty(t, updatedData)
+			err = reconciler.SetupWithManager(mgr)
+			if tc.wantError != "" {
+				assert.ErrorContains(t, err, tc.wantError)
+			} else {
+				assert.NoError(t, err)
+			}
 		})
-	})
-})
+	}
+}
+func TestConfigMapReconciler_Reconcile(t *testing.T) {
+	testCases := []struct {
+		name        string
+		configMeta  types.NamespacedName
+		objects     []client.Object
+		requestMeta types.NamespacedName
+		wantResult  reconcile.Result
+		wantError   string
+	}{
+		{
+			name:       "successful reconciliation",
+			configMeta: types.NamespacedName{Namespace: "default", Name: "ingress-annotator-rules"},
+			objects: []client.Object{
+				&corev1.ConfigMap{
+					ObjectMeta: ctrl.ObjectMeta{Namespace: "default", Name: "ingress-annotator-rules"},
+					Data:       map[string]string{"rule1": "annotations:\n  key: value\nnamespace: default\ningress: my-ingress"},
+				},
+			},
+			requestMeta: types.NamespacedName{Namespace: "default", Name: "ingress-annotator-rules"},
+			wantResult:  reconcile.Result{},
+			wantError:   "",
+		},
+		{
+			name:       "successful reconciliation for other cm",
+			configMeta: types.NamespacedName{Namespace: "default", Name: "ingress-annotator-rules"},
+			objects: []client.Object{
+				&corev1.ConfigMap{
+					ObjectMeta: ctrl.ObjectMeta{Namespace: "default", Name: "ingress-annotator-rules"},
+					Data:       map[string]string{"rule1": "annotations:\n  key: value\nnamespace: default\ningress: my-ingress"},
+				},
+			},
+			requestMeta: types.NamespacedName{Namespace: "default", Name: "xxx"},
+			wantResult:  reconcile.Result{},
+			wantError:   "",
+		},
+		{
+			name:        "config map not found",
+			configMeta:  types.NamespacedName{Namespace: "default", Name: "ingress-annotator-rules"},
+			objects:     []client.Object{},
+			requestMeta: types.NamespacedName{Namespace: "default", Name: "ingress-annotator-rules"},
+			wantResult:  reconcile.Result{},
+			wantError:   `updateRulesWithConfigMap err: getConfigMap err: configmaps "ingress-annotator-rules" not found`,
+		},
+	}
+
+	for i, tc := range testCases {
+		t.Run(tester.Name(i, tc.name), func(t *testing.T) {
+			ctx := context.Background()
+			client := newFakeClient(tc.objects...)
+			store := rulesstore.New()
+			reconciler := &ConfigMapReconciler{
+				Client:     client,
+				Scheme:     runtime.NewScheme(),
+				ConfigMeta: tc.configMeta,
+				RulesStore: store,
+			}
+
+			req := ctrl.Request{NamespacedName: tc.requestMeta}
+			result, err := reconciler.Reconcile(ctx, req)
+			if tc.wantError == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.EqualError(t, err, tc.wantError)
+			}
+			assert.Equal(t, tc.wantResult, result)
+		})
+	}
+}
+
+func TestConfigMapReconciler_updateRulesWithConfigMap(t *testing.T) {
+	testCases := []struct {
+		name          string
+		configMap     *corev1.ConfigMap
+		expectedError bool
+	}{
+		{
+			name: "valid config map",
+			configMap: &corev1.ConfigMap{
+				ObjectMeta: ctrl.ObjectMeta{
+					Name:      "ingress-annotator-rules",
+					Namespace: "default",
+				},
+				Data: map[string]string{
+					"rule1": "annotations:\n  key: value\nnamespace: default\ningress: my-ingress",
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "invalid config map data",
+			configMap: &corev1.ConfigMap{
+				ObjectMeta: ctrl.ObjectMeta{
+					Name:      "ingress-annotator-rules",
+					Namespace: "default",
+				},
+				Data: map[string]string{
+					"rule1": "invalid yaml",
+				},
+			},
+			expectedError: true,
+		},
+	}
+
+	for i, tc := range testCases {
+		t.Run(tester.Name(i, tc.name), func(t *testing.T) {
+			client := newFakeClient(tc.configMap)
+			store := rulesstore.New()
+			reconciler := &ConfigMapReconciler{
+				Client:     client,
+				Scheme:     runtime.NewScheme(),
+				ConfigMeta: types.NamespacedName{Namespace: "default", Name: "ingress-annotator-rules"},
+				RulesStore: store,
+			}
+
+			err := reconciler.updateRulesWithConfigMap(context.Background())
+			if tc.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				rules := store.GetRules()
+				assert.NotNil(t, rules)
+				assert.Contains(t, *rules, "rule1")
+			}
+		})
+	}
+}
