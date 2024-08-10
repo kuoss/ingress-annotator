@@ -111,11 +111,13 @@ func (r *IngressReconciler) getExpectedAnnotations(ctx *IngressContext) model.An
 			continue
 		}
 
-		if matched, err := filepath.Match(rule.Ingress, ingress.Name); err != nil {
-			ctx.logger.Error(err, "failed to match ingress name", "key", key, "ingress", rule.Ingress)
-			continue
-		} else if !matched {
-			continue
+		if ingress.Name != "" {
+			if matched, err := filepath.Match(rule.Ingress, ingress.Name); err != nil {
+				ctx.logger.Error(err, "failed to match ingress name", "key", key, "ingress", rule.Ingress)
+				continue
+			} else if !matched {
+				continue
+			}
 		}
 
 		// Apply annotations from the matched rule

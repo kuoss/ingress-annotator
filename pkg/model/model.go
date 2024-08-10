@@ -2,13 +2,6 @@ package model
 
 type Annotations map[string]string
 
-type AnnotationsUnmanagePolicy string
-
-const (
-	AnnotationsUnmanagePolicyDelete AnnotationsUnmanagePolicy = "Delete"
-	AnnotationsUnmanagePolicyRetain AnnotationsUnmanagePolicy = "Retain"
-)
-
 type Rules map[string]Rule
 
 type Rule struct {
