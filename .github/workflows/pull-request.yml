@@ -24,12 +24,12 @@ jobs:
           ~/go/pkg/mod
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
         restore-keys: |
-          ${{ runner.os }}-go-    
+          ${{ runner.os }}-go-
     - uses: actions/setup-go@v4
     - uses: actions/checkout@v3
     - run: go mod download
     - run: make test
-    - run: go install github.com/mattn/goveralls@latest
+    - run: go install github.com/mattn/goveralls@v0.0.12
     - run: goveralls -coverprofile=cover.out -service=github
       env:
         COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}

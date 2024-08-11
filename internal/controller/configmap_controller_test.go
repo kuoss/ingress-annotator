@@ -24,6 +24,29 @@ func TestConfigMapReconciler_SetupWithManager(t *testing.T) {
 		wantError    string
 	}{
 		{
+			name:         "missing POD_NAMESPACE",
+			namespaceEnv: "",
+			objects:      []client.Object{},
+			wantError:    "POD_NAMESPACE environment variable is not set or is empty",
+		},
+		{
+			name:         "unmarshal errors",
+			namespaceEnv: "default",
+			objects: []client.Object{
+				&corev1.ConfigMap{
+					ObjectMeta: ctrl.ObjectMeta{
+						Name:      "ingress-annotator-rules",
+						Namespace: "default",
+					},
+					Data: map[string]string{
+						"rule1": "invalid",
+					},
+				},
+			},
+			wantError: "yaml: unmarshal errors",
+		},
+
+		{
 			name:         "successful setup 1",
 			namespaceEnv: "default",
 			objects: []client.Object{
@@ -52,55 +75,23 @@ func TestConfigMapReconciler_SetupWithManager(t *testing.T) {
 			},
 			wantError: "",
 		},
-		{
-			name:         "missing CONTROLLER_NAMESPACE",
-			namespaceEnv: "",
-			objects:      []client.Object{},
-			wantError:    "CONTROLLER_NAMESPACE environment variable is not set or is empty",
-		},
-		{
-			name:         "successful setup",
-			namespaceEnv: "default",
-			objects: []client.Object{
-				&corev1.ConfigMap{
-					ObjectMeta: ctrl.ObjectMeta{
-						Name:      "ingress-annotator-rules",
-						Namespace: "default",
-					},
-					Data: map[string]string{
-						"rule1": "invalid",
-					},
-				},
-			},
-			wantError: "yaml: unmarshal errors",
-		},
 	}
 
 	for i, tc := range testCases {
 		t.Run(tester.Name(i, tc.name), func(t *testing.T) {
-			t.Log(111)
-			t.Setenv("CONTROLLER_NAMESPACE", tc.namespaceEnv)
-			t.Log(222)
+			t.Setenv("POD_NAMESPACE", tc.namespaceEnv)
 
-			fakeClient := newFakeClient(tc.objects...)
 			reconciler := &ConfigMapReconciler{
-				Client:     fakeClient,
+				Client:     newFakeClient(tc.objects...),
 				Scheme:     newScheme(),
 				RulesStore: rulesstore.New(),
 			}
-			t.Log(333)
-
-			mgr := newFakeManager()
-			t.Log(555)
-
-			err := reconciler.SetupWithManager(mgr)
-			t.Log(666)
+			err := reconciler.SetupWithManager(newFakeManager())
 			if tc.wantError != "" {
 				assert.ErrorContains(t, err, tc.wantError)
 			} else {
 				assert.NoError(t, err)
 			}
-			t.Log(777)
 		})
 	}
 }
