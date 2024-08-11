@@ -1,5 +1,8 @@
 # ingress-annotator
 
+[![release](https://github.com/kuoss/ingress-annotator/actions/workflows/release.yml/badge.svg)](https://github.com/kuoss/ingress-annotator/actions/workflows/release.yml)
+[![pull-request](https://github.com/kuoss/ingress-annotator/actions/workflows/pull-request.yml/badge.svg)](https://github.com/kuoss/ingress-annotator/actions/workflows/pull-request.yml)
+[![GitHub license](https://img.shields.io/github/license/kuoss/ingress-annotator.svg)](https://github.com/kuoss/ingress-annotator/blob/main/LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/kuoss/ingress-annotator)](https://goreportcard.com/report/github.com/kuoss/ingress-annotator)
 
 `ingress-annotator` is a Kubernetes utility designed to dynamically manage ingress annotations based on predefined rules set in a ConfigMap. This tool simplifies the process of annotating ingresses in various namespaces, ensuring consistency and reducing manual configuration.
