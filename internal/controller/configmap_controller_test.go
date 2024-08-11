@@ -81,10 +81,8 @@ func TestConfigMapReconciler_SetupWithManager(t *testing.T) {
 		t.Run(tester.Name(i, tc.name), func(t *testing.T) {
 			// WORKAROUND for GitHub Actions
 			// t.Setenv("POD_NAMESPACE", tc.namespaceEnv)
-			namespaceEnv := os.Getenv("POD_NAMESPACE")
-			defer func() {
-				os.Setenv("POD_NAMESPACE", namespaceEnv)
-			}()
+			originalPodNamespace := os.Getenv("POD_NAMESPACE")
+			defer os.Setenv("POD_NAMESPACE", originalPodNamespace)
 			os.Setenv("POD_NAMESPACE", tc.namespaceEnv)
 
 			reconciler := &ConfigMapReconciler{
