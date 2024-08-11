@@ -1,4 +1,7 @@
 # ingress-annotator
+
+[![Go Report Card](https://goreportcard.com/badge/github.com/kuoss/ingress-annotator)](https://goreportcard.com/report/github.com/kuoss/ingress-annotator)
+
 `ingress-annotator` is a Kubernetes utility designed to dynamically manage ingress annotations based on predefined rules set in a ConfigMap. This tool simplifies the process of annotating ingresses in various namespaces, ensuring consistency and reducing manual configuration.
 
 ## Features
