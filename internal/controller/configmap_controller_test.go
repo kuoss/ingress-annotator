@@ -97,11 +97,13 @@ func TestConfigMapReconciler_SetupWithManager(t *testing.T) {
 			t.Log(555)
 
 			err = reconciler.SetupWithManager(mgr)
+			t.Log(666)
 			if tc.wantError != "" {
 				assert.ErrorContains(t, err, tc.wantError)
 			} else {
 				assert.NoError(t, err)
 			}
+			t.Log(777)
 		})
 	}
 }
