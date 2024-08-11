@@ -26,9 +26,7 @@ func newFakeClient(objs ...client.Object) client.Client {
 }
 
 func newFakeManager() manager.Manager {
-	mgr, err := ctrl.NewManager(&rest.Config{}, ctrl.Options{
-		Scheme: newScheme(),
-	})
+	mgr, err := ctrl.NewManager(&rest.Config{}, ctrl.Options{Scheme: newScheme()})
 	if err != nil {
 		panic(err)
 	}
