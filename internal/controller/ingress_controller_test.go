@@ -41,12 +41,9 @@ func TestSetupWithManager(t *testing.T) {
 		Scheme:     newScheme(),
 		RulesStore: mockRulesStore,
 	}
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme: newScheme(),
-	})
-	assert.NoError(t, err)
 
-	err = reconciler.SetupWithManager(mgr)
+	mgr := newFakeManager()
+	err := reconciler.SetupWithManager(mgr)
 	assert.NoError(t, err)
 }
 
