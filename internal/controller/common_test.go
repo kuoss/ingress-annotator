@@ -26,10 +26,7 @@ func newFakeClient(objs ...client.Object) client.Client {
 }
 
 func newFakeManager() manager.Manager {
-	fakeConfig := &rest.Config{
-		Host: "https://fake-api-server",
-	}
-	mgr, err := ctrl.NewManager(fakeConfig, ctrl.Options{
+	mgr, err := ctrl.NewManager(&rest.Config{}, ctrl.Options{
 		Scheme: newScheme(),
 	})
 	if err != nil {
