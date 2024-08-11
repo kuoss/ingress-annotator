@@ -78,20 +78,23 @@ func TestConfigMapReconciler_SetupWithManager(t *testing.T) {
 
 	for i, tc := range testCases {
 		t.Run(tester.Name(i, tc.name), func(t *testing.T) {
-			t.Log("hello")
+			t.Log(111)
 			t.Setenv("CONTROLLER_NAMESPACE", tc.namespaceEnv)
-			t.Log("world")
+			t.Log(222)
 
 			reconciler := &ConfigMapReconciler{
 				Client:     newFakeClient(tc.objects...),
 				Scheme:     newScheme(),
 				RulesStore: rulesstore.New(),
 			}
+			t.Log(333)
 
 			mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 				Scheme: newScheme(),
 			})
+			t.Log(444)
 			assert.NoError(t, err)
+			t.Log(555)
 
 			err = reconciler.SetupWithManager(mgr)
 			if tc.wantError != "" {
