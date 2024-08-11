@@ -85,6 +85,8 @@ func TestConfigMapReconciler_SetupWithManager(t *testing.T) {
 			defer os.Setenv("POD_NAMESPACE", originalPodNamespace)
 			os.Setenv("POD_NAMESPACE", tc.namespaceEnv)
 
+			t.Log("POD_NAMESPACE", os.Getenv("POD_NAMESPACE"))
+
 			reconciler := &ConfigMapReconciler{
 				Client:     newFakeClient(tc.objects...),
 				Scheme:     newScheme(),
