@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/jmnote/tester"
@@ -78,7 +79,13 @@ func TestConfigMapReconciler_SetupWithManager(t *testing.T) {
 
 	for i, tc := range testCases {
 		t.Run(tester.Name(i, tc.name), func(t *testing.T) {
-			t.Setenv("POD_NAMESPACE", tc.namespaceEnv)
+			// WORKAROUND for GitHub Actions
+			// t.Setenv("POD_NAMESPACE", tc.namespaceEnv)
+			namespaceEnv := os.Getenv("POD_NAMESPACE")
+			defer func() {
+				os.Setenv("POD_NAMESPACE", namespaceEnv)
+			}()
+			os.Setenv("POD_NAMESPACE", tc.namespaceEnv)
 
 			reconciler := &ConfigMapReconciler{
 				Client:     newFakeClient(tc.objects...),
