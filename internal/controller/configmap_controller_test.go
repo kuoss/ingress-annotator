@@ -78,7 +78,9 @@ func TestConfigMapReconciler_SetupWithManager(t *testing.T) {
 
 	for i, tc := range testCases {
 		t.Run(tester.Name(i, tc.name), func(t *testing.T) {
+			t.Log("hello")
 			t.Setenv("CONTROLLER_NAMESPACE", tc.namespaceEnv)
+			t.Log("world")
 
 			reconciler := &ConfigMapReconciler{
 				Client:     newFakeClient(tc.objects...),
