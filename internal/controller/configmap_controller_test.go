@@ -9,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -82,15 +83,20 @@ func TestConfigMapReconciler_SetupWithManager(t *testing.T) {
 			t.Setenv("CONTROLLER_NAMESPACE", tc.namespaceEnv)
 			t.Log(222)
 
+			fakeClient := newFakeClient(tc.objects...)
+			fakeClientFunc := func(config *rest.Config, options client.Options) (client.Client, error) {
+				return fakeClient, nil
+			}
 			reconciler := &ConfigMapReconciler{
-				Client:     newFakeClient(tc.objects...),
+				Client:     fakeClient,
 				Scheme:     newScheme(),
 				RulesStore: rulesstore.New(),
 			}
 			t.Log(333)
 
 			mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-				Scheme: newScheme(),
+				Scheme:    newScheme(),
+				NewClient: fakeClientFunc,
 			})
 			t.Log(444)
 			assert.NoError(t, err)
