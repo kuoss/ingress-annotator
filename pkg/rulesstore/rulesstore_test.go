@@ -83,7 +83,7 @@ func TestConcurrency(t *testing.T) {
 		}()
 
 		wg.Add(1)
-		go func(i int) {
+		go func(_ int) {
 			defer wg.Done()
 			mockData := map[string]string{
 				"rule": `

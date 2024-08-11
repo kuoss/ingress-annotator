@@ -30,7 +30,7 @@ func TestConfigMapReconciler_SetupWithManager(t *testing.T) {
 			wantError:    "POD_NAMESPACE environment variable is not set or is empty",
 		},
 		{
-			name:         "successful setup",
+			name:         "unmarshal errors",
 			namespaceEnv: "default",
 			objects: []client.Object{
 				&corev1.ConfigMap{
@@ -45,6 +45,7 @@ func TestConfigMapReconciler_SetupWithManager(t *testing.T) {
 			},
 			wantError: "yaml: unmarshal errors",
 		},
+
 		{
 			name:         "successful setup 1",
 			namespaceEnv: "default",
@@ -85,13 +86,7 @@ func TestConfigMapReconciler_SetupWithManager(t *testing.T) {
 				Scheme:     newScheme(),
 				RulesStore: rulesstore.New(),
 			}
-
-			mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-				Scheme: newScheme(),
-			})
-			assert.NoError(t, err)
-
-			err = reconciler.SetupWithManager(mgr)
+			err := reconciler.SetupWithManager(newFakeManager())
 			if tc.wantError != "" {
 				assert.ErrorContains(t, err, tc.wantError)
 			} else {
