@@ -42,8 +42,7 @@ func TestSetupWithManager(t *testing.T) {
 		RulesStore: mockRulesStore,
 	}
 
-	mgr := newFakeManager()
-	err := reconciler.SetupWithManager(mgr)
+	err := reconciler.SetupWithManager(newFakeManager())
 	assert.NoError(t, err)
 }
 
