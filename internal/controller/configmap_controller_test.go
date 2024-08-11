@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/jmnote/tester"
@@ -25,10 +24,10 @@ func TestConfigMapReconciler_SetupWithManager(t *testing.T) {
 		wantError    string
 	}{
 		{
-			name:         "missing POD_NAMESPACE",
+			name:         "missing CONTROLLER_NAMESPACE",
 			namespaceEnv: "",
 			objects:      []client.Object{},
-			wantError:    "POD_NAMESPACE environment variable is not set or is empty",
+			wantError:    "CONTROLLER_NAMESPACE environment variable is not set or is empty",
 		},
 		{
 			name:         "successful setup",
@@ -79,13 +78,7 @@ func TestConfigMapReconciler_SetupWithManager(t *testing.T) {
 
 	for i, tc := range testCases {
 		t.Run(tester.Name(i, tc.name), func(t *testing.T) {
-			// WORKAROUND for GitHub Actions
-			// t.Setenv("POD_NAMESPACE", tc.namespaceEnv)
-			originalPodNamespace := os.Getenv("POD_NAMESPACE")
-			defer os.Setenv("POD_NAMESPACE", originalPodNamespace)
-			os.Setenv("POD_NAMESPACE", tc.namespaceEnv)
-
-			t.Log("POD_NAMESPACE", os.Getenv("POD_NAMESPACE"))
+			t.Setenv("CONTROLLER_NAMESPACE", tc.namespaceEnv)
 
 			reconciler := &ConfigMapReconciler{
 				Client:     newFakeClient(tc.objects...),

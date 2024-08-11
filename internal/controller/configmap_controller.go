@@ -46,9 +46,9 @@ type ConfigMapReconciler struct {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ConfigMapReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	ns := os.Getenv("POD_NAMESPACE")
+	ns := os.Getenv("CONTROLLER_NAMESPACE")
 	if ns == "" {
-		return errors.New("POD_NAMESPACE environment variable is not set or is empty")
+		return errors.New("CONTROLLER_NAMESPACE environment variable is not set or is empty")
 	}
 	r.ConfigMeta = types.NamespacedName{
 		Namespace: ns,
