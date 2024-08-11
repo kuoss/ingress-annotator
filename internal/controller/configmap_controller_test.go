@@ -24,28 +24,6 @@ func TestConfigMapReconciler_SetupWithManager(t *testing.T) {
 		wantError    string
 	}{
 		{
-			name:         "missing CONTROLLER_NAMESPACE",
-			namespaceEnv: "",
-			objects:      []client.Object{},
-			wantError:    "CONTROLLER_NAMESPACE environment variable is not set or is empty",
-		},
-		{
-			name:         "successful setup",
-			namespaceEnv: "default",
-			objects: []client.Object{
-				&corev1.ConfigMap{
-					ObjectMeta: ctrl.ObjectMeta{
-						Name:      "ingress-annotator-rules",
-						Namespace: "default",
-					},
-					Data: map[string]string{
-						"rule1": "invalid",
-					},
-				},
-			},
-			wantError: "yaml: unmarshal errors",
-		},
-		{
 			name:         "successful setup 1",
 			namespaceEnv: "default",
 			objects: []client.Object{
@@ -73,6 +51,28 @@ func TestConfigMapReconciler_SetupWithManager(t *testing.T) {
 				},
 			},
 			wantError: "",
+		},
+		{
+			name:         "missing CONTROLLER_NAMESPACE",
+			namespaceEnv: "",
+			objects:      []client.Object{},
+			wantError:    "CONTROLLER_NAMESPACE environment variable is not set or is empty",
+		},
+		{
+			name:         "successful setup",
+			namespaceEnv: "default",
+			objects: []client.Object{
+				&corev1.ConfigMap{
+					ObjectMeta: ctrl.ObjectMeta{
+						Name:      "ingress-annotator-rules",
+						Namespace: "default",
+					},
+					Data: map[string]string{
+						"rule1": "invalid",
+					},
+				},
+			},
+			wantError: "yaml: unmarshal errors",
 		},
 	}
 
