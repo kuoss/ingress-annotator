@@ -50,6 +50,7 @@ func (r *ConfigMapReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if ns == "" {
 		return errors.New("CONTROLLER_NAMESPACE environment variable is not set or is empty")
 	}
+	fmt.Printf("--- ns=[%#v]\n\n", ns)
 	r.ConfigMeta = types.NamespacedName{
 		Namespace: ns,
 		Name:      "ingress-annotator-rules",
