@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -29,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/go-logr/logr"
+	"github.com/kuoss/ingress-annotator/pkg/matcher"
 	"github.com/kuoss/ingress-annotator/pkg/model"
 	"github.com/kuoss/ingress-annotator/pkg/rulesstore"
 )
@@ -103,29 +103,17 @@ func (r *IngressReconciler) getNewManagedAnnotations(ctx *IngressContext) model.
 	ingress := ctx.ingress
 	newManagedAnnotations := model.Annotations{}
 
-	for key, rule := range *ctx.rules {
-		if matched, err := filepath.Match(rule.Namespace, ingress.Namespace); err != nil {
-			ctx.logger.Error(err, "failed to match namespace", "key", key, "namespace", rule.Namespace)
-			continue
-		} else if !matched {
+	for _, rule := range *ctx.rules {
+		if !matcher.Match(rule.Namespace, ingress.Namespace) {
 			continue
 		}
-
-		if ingress.Name != "" {
-			if matched, err := filepath.Match(rule.Ingress, ingress.Name); err != nil {
-				ctx.logger.Error(err, "failed to match ingress name", "key", key, "ingress", rule.Ingress)
-				continue
-			} else if !matched {
-				continue
-			}
+		if !matcher.Match(rule.Ingress, ingress.Name) {
+			continue
 		}
-
-		// Apply annotations from the matched rule
 		for key, value := range rule.Annotations {
 			newManagedAnnotations[key] = value
 		}
 	}
-
 	return newManagedAnnotations
 }
 

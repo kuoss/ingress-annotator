@@ -2,6 +2,7 @@ package rulesstore
 
 import (
 	"fmt"
+	"regexp"
 	"sync"
 
 	"gopkg.in/yaml.v3"
@@ -36,11 +37,14 @@ func (s *RulesStore) GetRules() *model.Rules {
 func (s *RulesStore) UpdateRules(cm *corev1.ConfigMap) error {
 	newRules := model.Rules{}
 	for key, text := range cm.Data {
-		value, err := getRuleValueFromText(text)
+		rule, err := getRuleValueFromText(text)
 		if err != nil {
 			return fmt.Errorf("invalid data in ConfigMap key %s: %w", key, err)
 		}
-		newRules[key] = *value
+		if err := validateRule(rule); err != nil {
+			return fmt.Errorf("validateRule err: %w", err)
+		}
+		newRules[key] = *rule
 	}
 
 	s.rulesMutex.Lock()
@@ -57,4 +61,23 @@ func getRuleValueFromText(text string) (*model.Rule, error) {
 		return nil, fmt.Errorf("failed to unmarshal YAML: %v", err)
 	}
 	return &rule, nil
+}
+
+func validateRule(rule *model.Rule) error {
+	if ok := validate(rule.Namespace); !ok {
+		return fmt.Errorf("invalid namespace pattern: %s", rule.Namespace)
+	}
+	if ok := validate(rule.Ingress); !ok {
+		return fmt.Errorf("invalid ingress pattern: %s", rule.Ingress)
+	}
+	return nil
+}
+
+func validate(pattern string) bool {
+	if pattern == "" {
+		return true
+	}
+	regexPattern := `^!?(?:[a-z0-9\-\*]+(?:,[a-z0-9\-\*]+)*)$`
+	regex := regexp.MustCompile(regexPattern)
+	return regex.MatchString(pattern)
 }
