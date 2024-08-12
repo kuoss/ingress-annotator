@@ -43,7 +43,7 @@ spec:
   oauth2-proxy: |
     annotations:
       nginx.ingress.kubernetes.io/auth-signin: "https://oauth2-proxy.example.com/oauth2/start?rd=https://$host$request_uri"
-      nginx.ingress.kubernetes.io/auth-url: "https://oauth2-proxy.example.com//oauth2/auth"
+      nginx.ingress.kubernetes.io/auth-url: "https://oauth2-proxy.example.com/oauth2/auth"
     namespace: "dev1,dev2"
 
   # Rule to set a whitelist of source IP ranges for ingress resources with 
