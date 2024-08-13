@@ -29,7 +29,7 @@ data:
   proxy-body-size: |
     namespace: "prod1"
     annotations:
-      ingress.kubernetes.io/proxy-body-size: "8m"
+      nginx.ingress.kubernetes.io/proxy-body-size: "8m"
     
   # Rule to rewrite the request URI to "/" for the specific ingress 
   # resource named ingress1 in namespace prod2
@@ -37,7 +37,7 @@ data:
     namespace: "prod2"
     ingress: "ingress1"
     annotations:
-      ingress.kubernetes.io/rewrite-target: "/"
+      nginx.ingress.kubernetes.io/rewrite-target: "/"
 
   # Rule to configure OAuth2 authentication for ingress resources 
   # in namespaces dev1 and dev2
