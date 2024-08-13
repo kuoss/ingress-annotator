@@ -22,6 +22,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: ingress-annotator-rules
+  namespace: ingress-annotator
 data:
   # Rule to set proxy body size limit to 8MB for ingress resources 
   # in namespace prod1
