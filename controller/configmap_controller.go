@@ -18,9 +18,7 @@ package controller
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"os"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -29,14 +27,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/kuoss/ingress-annotator/pkg/rulesstore"
+	"github.com/kuoss/ingress-annotator/controller/rulesstore"
 )
 
 // ConfigMapReconciler reconciles a ConfigMap object
 type ConfigMapReconciler struct {
 	client.Client
 	Scheme     *runtime.Scheme
-	ConfigMeta types.NamespacedName
+	ConfigNN   types.NamespacedName
 	RulesStore rulesstore.IRulesStore
 }
 
@@ -46,17 +44,6 @@ type ConfigMapReconciler struct {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ConfigMapReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	ns, exists := os.LookupEnv("POD_NAMESPACE")
-	if !exists || ns == "" {
-		return errors.New("POD_NAMESPACE environment variable is not set or is empty")
-	}
-	r.ConfigMeta = types.NamespacedName{
-		Namespace: ns,
-		Name:      "ingress-annotator-rules",
-	}
-	if err := r.updateRulesWithConfigMap(context.Background()); err != nil {
-		return fmt.Errorf("updateRulesWithConfigMap err: %w", err)
-	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.ConfigMap{}).
 		Complete(r)
@@ -72,31 +59,14 @@ func (r *ConfigMapReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.18.4/pkg/reconcile
 func (r *ConfigMapReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	if req.Namespace == r.ConfigMeta.Namespace && req.Name == r.ConfigMeta.Name {
-		return r.reconcileNormal(ctx, req)
+	if req.Namespace == r.ConfigNN.Namespace && req.Name == r.ConfigNN.Name {
+		logger := log.FromContext(ctx).WithValues("kind", "configmap", "namespace", req.Namespace, "name", req.Name)
+
+		logger.Info("Reconciling ConfigMap")
+		if err := r.RulesStore.UpdateRules(); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to update rules in rules store: %w", err)
+		}
+		logger.Info("Successfully reconciled ConfigMap")
 	}
 	return ctrl.Result{}, nil
-}
-
-func (r *ConfigMapReconciler) reconcileNormal(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := log.FromContext(ctx).WithValues("kind", "configmap", "namespace", req.Namespace, "name", req.Name).WithCallDepth(1)
-
-	logger.Info("Reconciling ConfigMap")
-	if err := r.updateRulesWithConfigMap(context.Background()); err != nil {
-		return ctrl.Result{}, fmt.Errorf("updateRulesWithConfigMap err: %w", err)
-	}
-
-	logger.Info("Successfully reconciled ConfigMap")
-	return ctrl.Result{}, nil
-}
-
-func (r *ConfigMapReconciler) updateRulesWithConfigMap(ctx context.Context) error {
-	var cm corev1.ConfigMap
-	if err := r.Get(ctx, r.ConfigMeta, &cm); err != nil {
-		return fmt.Errorf("getConfigMap err: %w", err)
-	}
-	if err := r.RulesStore.UpdateRules(&cm); err != nil {
-		return fmt.Errorf("failed to update data in rules store: %w", err)
-	}
-	return nil
 }
