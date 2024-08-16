@@ -18,7 +18,9 @@ package main
 
 import (
 	"crypto/tls"
+	"errors"
 	"flag"
+	"fmt"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -26,6 +28,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -35,14 +38,15 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	"github.com/kuoss/ingress-annotator/internal/controller"
-	"github.com/kuoss/ingress-annotator/pkg/rulesstore"
+	"github.com/kuoss/ingress-annotator/controller"
+	"github.com/kuoss/ingress-annotator/controller/rulesstore"
 	// +kubebuilder:scaffold:imports
 )
 
 var (
-	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
+	configMapName = "ingress-annotator"
+	scheme        = runtime.NewScheme()
+	setupLog      = ctrl.Log.WithName("setup")
 )
 
 func init() {
@@ -52,6 +56,13 @@ func init() {
 }
 
 func main() {
+	if err := run(); err != nil {
+		setupLog.Error(err, "unable to run the manager")
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
@@ -82,13 +93,12 @@ func main() {
 	// Rapid Reset CVEs. For more information see:
 	// - https://github.com/advisories/GHSA-qppj-fm5r-hxr3
 	// - https://github.com/advisories/GHSA-4374-p667-p6c8
-	disableHTTP2 := func(c *tls.Config) {
-		setupLog.Info("disabling http/2")
-		c.NextProtos = []string{"http/1.1"}
-	}
 
 	if !enableHTTP2 {
-		tlsOpts = append(tlsOpts, disableHTTP2)
+		tlsOpts = append(tlsOpts, func(c *tls.Config) {
+			setupLog.Info("disabling http/2")
+			c.NextProtos = []string{"http/1.1"}
+		})
 	}
 
 	webhookServer := webhook.NewServer(webhook.Options{
@@ -139,41 +149,52 @@ func main() {
 		// LeaderElectionReleaseOnCancel: true,
 	})
 	if err != nil {
-		setupLog.Error(err, "unable to start manager")
+		return errors.New("unable to start manager")
+	}
+
+	ns, exists := os.LookupEnv("POD_NAMESPACE")
+	if !exists || ns == "" {
+		return errors.New("POD_NAMESPACE environment variable is not set or is empty")
+	}
+
+	nn := types.NamespacedName{
+		Namespace: ns,
+		Name:      configMapName,
+	}
+	rulesStore, err := rulesstore.New(mgr.GetClient(), nn)
+	if err != nil {
+		setupLog.Error(err, "unable to start rules store")
 		os.Exit(1)
 	}
 
-	rulesStore := rulesstore.New()
 	if err = (&controller.ConfigMapReconciler{
 		Client:     mgr.GetClient(),
 		Scheme:     mgr.GetScheme(),
+		ConfigNN:   nn,
 		RulesStore: rulesStore,
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ConfigMap")
-		os.Exit(1)
+		return fmt.Errorf("unable to create ConfigMapReconciler: %w", err)
 	}
 	if err = (&controller.IngressReconciler{
 		Client:     mgr.GetClient(),
 		Scheme:     mgr.GetScheme(),
 		RulesStore: rulesStore,
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Ingress")
-		os.Exit(1)
+		return fmt.Errorf("unable to create IngressReconciler: %w", err)
 	}
 	// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up health check")
-		os.Exit(1)
+		return fmt.Errorf("unable to set up health check: %w", err)
 	}
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up ready check")
-		os.Exit(1)
+		return fmt.Errorf("unable to set up ready check: %w", err)
 	}
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "problem running manager")
-		os.Exit(1)
+		return fmt.Errorf("problem running manager: %w", err)
 	}
+
+	return nil
 }

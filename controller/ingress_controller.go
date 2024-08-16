@@ -28,9 +28,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/go-logr/logr"
-	"github.com/kuoss/ingress-annotator/pkg/matcher"
-	"github.com/kuoss/ingress-annotator/pkg/model"
-	"github.com/kuoss/ingress-annotator/pkg/rulesstore"
+	"github.com/kuoss/ingress-annotator/controller/matcher"
+	"github.com/kuoss/ingress-annotator/controller/model"
+	"github.com/kuoss/ingress-annotator/controller/rulesstore"
 )
 
 const (

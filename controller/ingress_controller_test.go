@@ -8,9 +8,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/jmnote/tester"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -19,12 +17,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/kuoss/ingress-annotator/pkg/model"
+	"github.com/kuoss/ingress-annotator/controller/fakeclient"
+	"github.com/kuoss/ingress-annotator/controller/model"
+	"github.com/kuoss/ingress-annotator/controller/rulesstore/mockrulesstore"
 )
 
 // TestSetupWithManager tests the SetupWithManager method of IngressReconciler.
 func TestSetupWithManager(t *testing.T) {
-	mockRulesStore := new(MockRulesStore)
+	mockRulesStore := new(mockrulesstore.RulesStore)
 	rules := &model.Rules{
 		"default/example-ingress": {
 			Namespace: "default",
@@ -36,30 +36,15 @@ func TestSetupWithManager(t *testing.T) {
 	}
 	mockRulesStore.On("GetRules").Return(rules)
 
+	client := fakeclient.NewClient(nil)
 	reconciler := &IngressReconciler{
-		Client:     newFakeClient(),
-		Scheme:     newScheme(),
+		Client:     client,
+		Scheme:     fakeclient.NewScheme(),
 		RulesStore: mockRulesStore,
 	}
 
-	err := reconciler.SetupWithManager(newFakeManager())
+	err := reconciler.SetupWithManager(fakeclient.NewManager())
 	assert.NoError(t, err)
-}
-
-// Mocked RulesStore for testing
-type MockRulesStore struct {
-	mock.Mock
-	Rules *model.Rules
-}
-
-func (m *MockRulesStore) GetRules() *model.Rules {
-	args := m.Called()
-	return args.Get(0).(*model.Rules)
-}
-
-func (m *MockRulesStore) UpdateRules(cm *corev1.ConfigMap) error {
-	args := m.Called()
-	return args.Get(0).(error)
 }
 
 // TestReconcile tests the Reconcile method of IngressReconciler
@@ -68,7 +53,7 @@ func TestReconcile(t *testing.T) {
 		name        string
 		ingress     *networkingv1.Ingress
 		rules       *model.Rules
-		badClient1  bool
+		clientOpts  *fakeclient.ClientOpts
 		wantApplied map[string]string
 		wantRemoved []string
 		wantError   string
@@ -201,7 +186,7 @@ func TestReconcile(t *testing.T) {
 			},
 			wantApplied: map[string]string{"new-key": "new-value"},
 			wantRemoved: nil,
-			badClient1:  true,
+			clientOpts:  &fakeclient.ClientOpts{UpdateError: true},
 			wantError:   "failed to update ingress annotations",
 		},
 	}
@@ -212,18 +197,15 @@ func TestReconcile(t *testing.T) {
 			if tc.ingress != nil {
 				objects = []client.Object{tc.ingress}
 			}
-			client := newFakeClient(objects...)
-			if tc.badClient1 {
-				client = newBadClient1(objects...)
-			}
+			client := fakeclient.NewClient(tc.clientOpts, objects...)
 			// Setup the IngressReconciler with a mock RulesStore
-			mockRulesStore := new(MockRulesStore)
-			mockRulesStore.On("GetRules").Return(tc.rules)
+			store := new(mockrulesstore.RulesStore)
+			store.On("GetRules").Return(tc.rules)
 
 			reconciler := &IngressReconciler{
 				Client:     client,
-				Scheme:     newScheme(),
-				RulesStore: mockRulesStore,
+				Scheme:     fakeclient.NewScheme(),
+				RulesStore: store,
 			}
 
 			// Run Reconcile
@@ -360,8 +342,8 @@ func TestGetManagedAnnotations(t *testing.T) {
 			}
 
 			r := &IngressReconciler{
-				Client: newFakeClient(&tc.ingress),
-				Scheme: newScheme(),
+				Client: fakeclient.NewClient(nil, &tc.ingress),
+				Scheme: fakeclient.NewScheme(),
 			}
 
 			got := r.getNewManagedAnnotations(ctx)
@@ -379,7 +361,7 @@ func TestUpdateAnnotations(t *testing.T) {
 		annotationsToApply    map[string]string
 		newManagedAnnotations map[string]string
 		wantResult            map[string]string
-		badClient1            bool
+		clientOpts            *fakeclient.ClientOpts
 		wantError             string
 	}{
 		{
@@ -454,8 +436,8 @@ func TestUpdateAnnotations(t *testing.T) {
 			annotationsToApply:    map[string]string{},
 			newManagedAnnotations: map[string]string{},
 			wantResult:            map[string]string{},
-			badClient1:            true,
-			wantError:             "failed to update ingress: Update operation is disabled in this fake client",
+			clientOpts:            &fakeclient.ClientOpts{UpdateError: true},
+			wantError:             "failed to update ingress: mocked Update error",
 		},
 	}
 
@@ -475,10 +457,7 @@ func TestUpdateAnnotations(t *testing.T) {
 			}
 
 			// Create a fake client and IngressContext
-			client := newFakeClient(ingress)
-			if tc.badClient1 {
-				client = newBadClient1(ingress)
-			}
+			client := fakeclient.NewClient(tc.clientOpts, ingress)
 
 			logger := logr.Discard() // Using discard logger for testing
 
