@@ -72,7 +72,7 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	ingressCtx := &IngressContext{
 		ctx:     ctx,
-		logger:  log.FromContext(ctx).WithValues("kind", "ingress", "namespace", ingress.Namespace, "name", ingress.Name).WithCallDepth(1),
+		logger:  log.FromContext(ctx).WithValues("kind", "ingress", "namespace", ingress.Namespace, "name", ingress.Name),
 		ingress: ingress,
 		rules:   r.RulesStore.GetRules(),
 	}
@@ -118,10 +118,14 @@ func (r *IngressReconciler) getNewManagedAnnotations(ctx *IngressContext) model.
 }
 
 // updateAnnotations applies the calculated annotations to the Ingress resource.
-func (r *IngressReconciler) updateAnnotations(ingressCtx *IngressContext, annotationsToRemove, annotationsToApply, newManagedAnnotations model.Annotations) error {
+func (r *IngressReconciler) updateAnnotations(
+	ingressCtx *IngressContext,
+	toRemove, annotationsToApply,
+	newManagedAnnotations model.Annotations,
+) error {
 	ingress := ingressCtx.ingress
 
-	for key := range annotationsToRemove {
+	for key := range toRemove {
 		delete(ingress.Annotations, key)
 	}
 
