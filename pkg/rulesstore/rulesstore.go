@@ -1,7 +1,7 @@
 package rulesstore
 
 import (
-	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -9,32 +9,25 @@ import (
 
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/kuoss/ingress-annotator/controller/model"
+	"github.com/kuoss/ingress-annotator/pkg/model"
 )
 
 type IRulesStore interface {
 	GetRules() *model.Rules
-	UpdateRules() error
+	UpdateRules(cm *corev1.ConfigMap) error
 }
 
 type RulesStore struct {
-	client     client.Client
-	nn         types.NamespacedName
 	Rules      *model.Rules
 	rulesMutex *sync.Mutex
 }
 
-func New(c client.Client, nn types.NamespacedName) (*RulesStore, error) {
+func New(cm *corev1.ConfigMap) (*RulesStore, error) {
 	store := &RulesStore{
-		client:     c,
-		nn:         nn,
 		rulesMutex: &sync.Mutex{},
 	}
-	if err := store.UpdateRules(); err != nil {
+	if err := store.UpdateRules(cm); err != nil {
 		return nil, fmt.Errorf("store.UpdateRules err: %w", err)
 	}
 	return store, nil
@@ -47,14 +40,9 @@ func (s *RulesStore) GetRules() *model.Rules {
 	return s.Rules
 }
 
-func (s *RulesStore) UpdateRules() error {
-	cm := &corev1.ConfigMap{}
-	err := s.client.Get(context.Background(), s.nn, cm)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			return fmt.Errorf("ConfigMap %s not found", s.nn)
-		}
-		return err
+func (s *RulesStore) UpdateRules(cm *corev1.ConfigMap) error {
+	if cm == nil {
+		return errors.New("configMap is nil")
 	}
 	newRules := model.Rules{}
 	for key, text := range cm.Data {

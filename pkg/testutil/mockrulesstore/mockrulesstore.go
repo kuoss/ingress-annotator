@@ -2,9 +2,10 @@ package mockrulesstore
 
 import (
 	"github.com/stretchr/testify/mock"
+	corev1 "k8s.io/api/core/v1"
 
-	"github.com/kuoss/ingress-annotator/controller/model"
-	"github.com/kuoss/ingress-annotator/controller/rulesstore"
+	"github.com/kuoss/ingress-annotator/pkg/model"
+	"github.com/kuoss/ingress-annotator/pkg/rulesstore"
 )
 
 type RulesStore struct {
@@ -17,7 +18,7 @@ func (m *RulesStore) GetRules() *model.Rules {
 	return args.Get(0).(*model.Rules)
 }
 
-func (m *RulesStore) UpdateRules() error {
+func (m *RulesStore) UpdateRules(cm *corev1.ConfigMap) error {
 	args := m.Called()
 	if args.Get(0) == nil {
 		return nil

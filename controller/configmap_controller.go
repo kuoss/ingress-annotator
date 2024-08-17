@@ -19,26 +19,26 @@ package controller
 import (
 	"context"
 	"fmt"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/kuoss/ingress-annotator/controller/rulesstore"
+	"github.com/kuoss/ingress-annotator/pkg/rulesstore"
 )
 
 // ConfigMapReconciler reconciles a ConfigMap object
 type ConfigMapReconciler struct {
 	client.Client
-	Scheme     *runtime.Scheme
-	ConfigNN   types.NamespacedName
+	NN         types.NamespacedName
 	RulesStore rulesstore.IRulesStore
 }
 
-// +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=configmaps/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core,resources=configmaps/finalizers,verbs=update
 
@@ -49,24 +49,33 @@ func (r *ConfigMapReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the ConfigMap object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.18.4/pkg/reconcile
 func (r *ConfigMapReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	if req.Namespace == r.ConfigNN.Namespace && req.Name == r.ConfigNN.Name {
-		logger := log.FromContext(ctx).WithValues("kind", "configmap", "namespace", req.Namespace, "name", req.Name)
-
-		logger.Info("Reconciling ConfigMap")
-		if err := r.RulesStore.UpdateRules(); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to update rules in rules store: %w", err)
-		}
-		logger.Info("Successfully reconciled ConfigMap")
+	// Only proceed if the request is for the ConfigMap we're watching
+	if req.Namespace != r.NN.Namespace || req.Name != r.NN.Name {
+		return ctrl.Result{}, nil
 	}
+
+	logger := log.FromContext(ctx).WithValues("kind", "ConfigMap", "namespace", req.Namespace, "name", req.Name)
+	logger.Info("Reconciling ConfigMap")
+
+	// Fetch the ConfigMap resource
+	var cm corev1.ConfigMap
+	if err := r.Get(ctx, r.NN, &cm); err != nil {
+		if errors.IsNotFound(err) {
+			logger.Error(err, "ConfigMap not found, will retry after delay")
+			// Retry after a delay if the ConfigMap is not found
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+		}
+		// Return the error with context if the Get operation fails
+		return ctrl.Result{}, fmt.Errorf("failed to get ConfigMap: %w", err)
+	}
+
+	// Update rules in the RulesStore
+	if err := r.RulesStore.UpdateRules(&cm); err != nil {
+		// Return the error with context if the update fails
+		return ctrl.Result{}, fmt.Errorf("failed to update rules in rules store: %w", err)
+	}
+
+	logger.Info("Successfully reconciled ConfigMap")
 	return ctrl.Result{}, nil
 }

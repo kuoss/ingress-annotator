@@ -21,16 +21,15 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/go-logr/logr"
 	networkingv1 "k8s.io/api/networking/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/go-logr/logr"
-	"github.com/kuoss/ingress-annotator/controller/matcher"
-	"github.com/kuoss/ingress-annotator/controller/model"
-	"github.com/kuoss/ingress-annotator/controller/rulesstore"
+	"github.com/kuoss/ingress-annotator/pkg/matcher"
+	"github.com/kuoss/ingress-annotator/pkg/model"
+	"github.com/kuoss/ingress-annotator/pkg/rulesstore"
 )
 
 const (
@@ -47,7 +46,6 @@ type IngressContext struct {
 // IngressReconciler reconciles a Ingress object
 type IngressReconciler struct {
 	client.Client
-	Scheme     *runtime.Scheme
 	RulesStore rulesstore.IRulesStore
 }
 

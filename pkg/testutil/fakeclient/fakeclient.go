@@ -18,8 +18,12 @@ import (
 
 func NewScheme() *runtime.Scheme {
 	scheme := runtime.NewScheme()
-	_ = corev1.AddToScheme(scheme)
-	_ = networkingv1.AddToScheme(scheme)
+	if err := corev1.AddToScheme(scheme); err != nil {
+		panic(err) // test unreachable
+	}
+	if err := networkingv1.AddToScheme(scheme); err != nil {
+		panic(err) // test unreachable
+	}
 	return scheme
 }
 
@@ -35,12 +39,23 @@ func NewClient(opts *ClientOpts, objs ...client.Object) client.Client {
 
 	interceptorFuncs := interceptor.Funcs{}
 	if opts.GetError {
-		interceptorFuncs.Get = func(ctx context.Context, client client.WithWatch, key types.NamespacedName, obj client.Object, opts ...client.GetOption) error {
+		interceptorFuncs.Get = func(
+			ctx context.Context,
+			client client.WithWatch,
+			key types.NamespacedName,
+			obj client.Object,
+			opts ...client.GetOption,
+		) error {
 			return errors.New("mocked Get error")
 		}
 	}
 	if opts.UpdateError {
-		interceptorFuncs.Update = func(ctx context.Context, client client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+		interceptorFuncs.Update = func(
+			ctx context.Context,
+			client client.WithWatch,
+			obj client.Object,
+			opts ...client.UpdateOption,
+		) error {
 			return errors.New("mocked Update error")
 		}
 	}

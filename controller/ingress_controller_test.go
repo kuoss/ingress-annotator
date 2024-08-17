@@ -17,9 +17,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/kuoss/ingress-annotator/controller/fakeclient"
-	"github.com/kuoss/ingress-annotator/controller/model"
-	"github.com/kuoss/ingress-annotator/controller/rulesstore/mockrulesstore"
+	"github.com/kuoss/ingress-annotator/pkg/model"
+	"github.com/kuoss/ingress-annotator/pkg/testutil/fakeclient"
+	"github.com/kuoss/ingress-annotator/pkg/testutil/mockrulesstore"
 )
 
 // TestSetupWithManager tests the SetupWithManager method of IngressReconciler.
@@ -39,7 +39,6 @@ func TestSetupWithManager(t *testing.T) {
 	client := fakeclient.NewClient(nil)
 	reconciler := &IngressReconciler{
 		Client:     client,
-		Scheme:     fakeclient.NewScheme(),
 		RulesStore: mockRulesStore,
 	}
 
@@ -204,7 +203,6 @@ func TestReconcile(t *testing.T) {
 
 			reconciler := &IngressReconciler{
 				Client:     client,
-				Scheme:     fakeclient.NewScheme(),
 				RulesStore: store,
 			}
 
@@ -343,7 +341,6 @@ func TestGetManagedAnnotations(t *testing.T) {
 
 			r := &IngressReconciler{
 				Client: fakeclient.NewClient(nil, &tc.ingress),
-				Scheme: fakeclient.NewScheme(),
 			}
 
 			got := r.getNewManagedAnnotations(ctx)
