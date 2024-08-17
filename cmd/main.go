@@ -102,7 +102,6 @@ func getManagerOptions() ctrl.Options {
 	webhookServer := webhook.NewServer(webhook.Options{
 		TLSOpts: tlsOpts,
 	})
-	fmt.Println(webhookServer)
 
 	metricsServerOptions := metricsserver.Options{
 		BindAddress:   metricsAddr,
@@ -125,9 +124,6 @@ func getManagerOptions() ctrl.Options {
 }
 
 func run(mgr ctrl.Manager) error {
-	if !mgr.GetCache().WaitForCacheSync(context.Background()) {
-		return fmt.Errorf("failed to wait for cache sync")
-	}
 	ns, exists := os.LookupEnv("POD_NAMESPACE")
 	if !exists || ns == "" {
 		return errors.New("POD_NAMESPACE environment variable is not set or is empty")

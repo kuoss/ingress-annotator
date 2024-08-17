@@ -21,6 +21,30 @@ import (
 	"github.com/kuoss/ingress-annotator/pkg/testutil/mockrulesstore"
 )
 
+func setupMockManager(mockCtrl *gomock.Controller) *mocks.MockManager {
+	mockManager := mocks.NewMockManager(mockCtrl)
+	mockCache := mocks.NewMockCache(mockCtrl)
+
+	scheme := fakeclient.NewScheme()
+
+	fakeClient := fakeclient.NewClient(nil, &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "test-namespace",
+			Name:      "ingress-annotator",
+		},
+	})
+
+	mockManager.EXPECT().GetCache().Return(mockCache).AnyTimes()
+	mockManager.EXPECT().GetClient().Return(fakeClient).AnyTimes()
+	mockManager.EXPECT().GetScheme().Return(scheme).AnyTimes()
+	mockManager.EXPECT().GetControllerOptions().Return(config.Controller{}).AnyTimes()
+	mockManager.EXPECT().Add(gomock.Any()).Return(nil).AnyTimes()
+	mockManager.EXPECT().AddHealthzCheck(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockManager.EXPECT().AddReadyzCheck(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockManager.EXPECT().GetLogger().Return(zap.New(zap.WriteTo(nil))).AnyTimes()
+	mockManager.EXPECT().GetAPIReader().Return(fakeClient).AnyTimes()
+	return mockManager
+}
 func TestGetManagerOptions(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	metricsAddr := fs.String("metrics-bind-address", "0", "")
@@ -55,37 +79,11 @@ func TestGetManagerOptions(t *testing.T) {
 	assert.Equal(t, "annotator.ingress.kubernetes.io", opts.LeaderElectionID, "Expected leader election ID to match")
 }
 
-func setupMockManager(mockCtrl *gomock.Controller) (*mocks.MockManager, *mocks.MockCache) {
-	mockManager := mocks.NewMockManager(mockCtrl)
-	mockCache := mocks.NewMockCache(mockCtrl)
-
-	scheme := fakeclient.NewScheme()
-
-	fakeClient := fakeclient.NewClient(nil, &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "test-namespace",
-			Name:      "ingress-annotator",
-		},
-	})
-
-	mockManager.EXPECT().GetCache().Return(mockCache).AnyTimes()
-	mockManager.EXPECT().GetClient().Return(fakeClient).AnyTimes()
-	mockManager.EXPECT().GetScheme().Return(scheme).AnyTimes()
-	mockManager.EXPECT().GetControllerOptions().Return(config.Controller{}).AnyTimes()
-	mockManager.EXPECT().AddHealthzCheck(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	mockManager.EXPECT().AddReadyzCheck(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	mockManager.EXPECT().GetLogger().Return(zap.New(zap.WriteTo(nil))).AnyTimes()
-	mockManager.EXPECT().GetAPIReader().Return(fakeClient).AnyTimes()
-	return mockManager, mockCache
-}
-
 func TestRun_PODNamespaceNotSet(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 
-	mockManager, mockCache := setupMockManager(mockCtrl)
-
-	mockCache.EXPECT().WaitForCacheSync(gomock.Any()).Return(true).Times(1)
+	mockManager := setupMockManager(mockCtrl)
 
 	t.Setenv("POD_NAMESPACE", "")
 	err := run(mockManager)
@@ -93,28 +91,11 @@ func TestRun_PODNamespaceNotSet(t *testing.T) {
 	assert.Equal(t, "POD_NAMESPACE environment variable is not set or is empty", err.Error())
 }
 
-func TestRun_WaitForCacheSyncReturnsFalse(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-
-	mockManager, mockCache := setupMockManager(mockCtrl)
-
-	mockCache.EXPECT().WaitForCacheSync(gomock.Any()).Return(false).Times(1)
-
-	t.Setenv("POD_NAMESPACE", "test-namespace")
-	err := run(mockManager)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to wait for cache sync")
-}
-
 func TestRun_SuccessfulRun(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 
-	mockManager, mockCache := setupMockManager(mockCtrl)
-
-	mockCache.EXPECT().WaitForCacheSync(gomock.Any()).Return(true).Times(1)
-	mockManager.EXPECT().Add(gomock.Any()).Return(nil).AnyTimes()
+	mockManager := setupMockManager(mockCtrl)
 
 	mockRulesStore := new(mockrulesstore.RulesStore)
 	rules := &model.Rules{
