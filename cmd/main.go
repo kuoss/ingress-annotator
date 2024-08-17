@@ -24,20 +24,22 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kuoss/ingress-annotator/controller"
-	"github.com/kuoss/ingress-annotator/controller/rulesstore"
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
-
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+
+	"github.com/kuoss/ingress-annotator/controller"
+	"github.com/kuoss/ingress-annotator/pkg/rulesstore"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -135,22 +137,25 @@ func run(mgr ctrl.Manager) error {
 		Namespace: ns,
 		Name:      configMapName,
 	}
-	rulesStore, err := rulesstore.New(mgr.GetClient(), nn)
+
+	cm, err := fetchConfigMapDirectly(mgr.GetAPIReader(), nn)
+	if err != nil {
+		return err
+	}
+	rulesStore, err := rulesstore.New(cm)
 	if err != nil {
 		return fmt.Errorf("unable to start rules store: %w", err)
 	}
 
 	if err = (&controller.ConfigMapReconciler{
 		Client:     mgr.GetClient(),
-		Scheme:     mgr.GetScheme(),
-		ConfigNN:   nn,
+		NN:         nn,
 		RulesStore: rulesStore,
 	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("unable to create ConfigMapReconciler: %w", err)
 	}
 	if err = (&controller.IngressReconciler{
 		Client:     mgr.GetClient(),
-		Scheme:     mgr.GetScheme(),
 		RulesStore: rulesStore,
 	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("unable to create IngressReconciler: %w", err)
@@ -170,4 +175,13 @@ func run(mgr ctrl.Manager) error {
 	}
 
 	return nil
+}
+
+func fetchConfigMapDirectly(reader client.Reader, nn types.NamespacedName) (*corev1.ConfigMap, error) {
+	cm := &corev1.ConfigMap{}
+	err := reader.Get(context.Background(), nn, cm)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch ConfigMap: %w", err)
+	}
+	return cm, nil
 }

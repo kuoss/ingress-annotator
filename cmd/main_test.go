@@ -5,18 +5,20 @@ import (
 	"flag"
 	"testing"
 
+	"github.com/jmnote/tester"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/kuoss/ingress-annotator/cmd/mocks"
-	"github.com/kuoss/ingress-annotator/controller/fakeclient"
-	"github.com/kuoss/ingress-annotator/controller/model"
-	"github.com/kuoss/ingress-annotator/controller/rulesstore/mockrulesstore"
+	"github.com/kuoss/ingress-annotator/pkg/model"
+	"github.com/kuoss/ingress-annotator/pkg/testutil/fakeclient"
+	"github.com/kuoss/ingress-annotator/pkg/testutil/mockrulesstore"
 )
 
 func TestGetManagerOptions(t *testing.T) {
@@ -73,7 +75,7 @@ func setupMockManager(mockCtrl *gomock.Controller) (*mocks.MockManager, *mocks.M
 	mockManager.EXPECT().AddHealthzCheck(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mockManager.EXPECT().AddReadyzCheck(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mockManager.EXPECT().GetLogger().Return(zap.New(zap.WriteTo(nil))).AnyTimes()
-
+	mockManager.EXPECT().GetAPIReader().Return(fakeClient).AnyTimes()
 	return mockManager, mockCache
 }
 
@@ -131,4 +133,43 @@ func TestRun_SuccessfulRun(t *testing.T) {
 	t.Setenv("POD_NAMESPACE", "test-namespace")
 	err := run(mockManager)
 	assert.NoError(t, err)
+}
+
+func TestFetchConfigMapDirectly(t *testing.T) {
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "my-configmap"},
+		Data:       map[string]string{"key": "value"},
+	}
+	testCases := []struct {
+		name       string
+		clientOpts *fakeclient.ClientOpts
+		nn         types.NamespacedName
+		want       *corev1.ConfigMap
+		wantError  string
+	}{
+		{
+			name: "ConfigMap fetched successfully",
+			nn:   types.NamespacedName{Namespace: "default", Name: "my-configmap"},
+			want: cm,
+		},
+		{
+			name:       "Client Get error",
+			clientOpts: &fakeclient.ClientOpts{GetError: true},
+			nn:         types.NamespacedName{Namespace: "default", Name: "error-configmap"},
+			wantError:  "failed to fetch ConfigMap: mocked Get error",
+		},
+	}
+
+	for i, tc := range testCases {
+		t.Run(tester.Name(i, tc.name), func(t *testing.T) {
+			client := fakeclient.NewClient(tc.clientOpts, cm)
+			got, err := fetchConfigMapDirectly(client, tc.nn)
+			if tc.wantError == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.EqualError(t, err, tc.wantError)
+			}
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }
