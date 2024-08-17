@@ -54,6 +54,18 @@ func init() {
 }
 
 func main() {
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), getManagerOptions())
+	if err != nil {
+		setupLog.Error(err, "unable to start manager")
+		os.Exit(1)
+	}
+	if err := run(mgr); err != nil {
+		setupLog.Error(err, "unable to run the manager")
+		os.Exit(1)
+	}
+}
+
+func getManagerOptions() ctrl.Options {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
@@ -100,21 +112,13 @@ func main() {
 		metricsServerOptions.FilterProvider = filters.WithAuthenticationAndAuthorization
 	}
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	return ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsServerOptions,
 		WebhookServer:          webhookServer,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "annotator.ingress.kubernetes.io",
-	})
-	if err != nil {
-		setupLog.Error(err, "unable to start manager")
-		os.Exit(1)
-	}
-	if err := run(mgr); err != nil {
-		setupLog.Error(err, "unable to run the manager")
-		os.Exit(1)
 	}
 }
 

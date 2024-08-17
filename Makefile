@@ -81,7 +81,7 @@ checks: test lint docker-build
 
 .PHONY: mocks
 mocks: mockgen
-	rm -rf cmd/mock
+	rm -rf cmd/mocks
 	$(MOCKGEN) -destination=cmd/mocks/mockcache.go -package="mocks" sigs.k8s.io/controller-runtime/pkg/cache Cache
 	$(MOCKGEN) -destination=cmd/mocks/mockmanager.go -package="mocks" sigs.k8s.io/controller-runtime/pkg/manager Manager
 	
