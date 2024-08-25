@@ -5,13 +5,13 @@
 [![GitHub license](https://img.shields.io/github/license/kuoss/ingress-annotator.svg)](https://github.com/kuoss/ingress-annotator/blob/main/LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/kuoss/ingress-annotator)](https://goreportcard.com/report/github.com/kuoss/ingress-annotator)
 
-The **Ingress Annotator** is a Kubernetes utility designed to streamline the management and application of annotations across Ingress resources within your clusters. With this tool, you can define reusable annotation rules in a ConfigMap, which are automatically propagated to your Ingresses or all Ingresses within a specified namespace based on simple annotation references. This ensures that updates to your annotation rules are immediately and consistently applied across relevant Ingress resources, reducing the risk of errors and making your deployments more maintainable.
+The **Ingress Annotator** is a Kubernetes utility designed to streamline the management and application of annotations across Ingress resources within your clusters. With this tool, you can define reusable annotation rules in a ConfigMap, which are automatically propagated to your Ingresses or all Ingresses within a specified namespace based on simple annotation references. This ensures that updates to your annotation rules are applied immediately and consistently across relevant Ingress resources, reducing the risk of errors and enhancing the maintainability of your deployments.
 
 ## Features
-- **Centralized Annotation Management**: Define reusable annotations in a ConfigMap that can be applied to multiple Ingress resources or entire namespaces. This ensures consistency and reduces the need for repetitive configurations.
-- **Flexible and Scalable Application**: Apply annotation rules to individual Ingress resources or automatically propagate them to all Ingresses within a namespace, simplifying configuration management across your Kubernetes environment.
+- **Centralized Annotation Management**: Define reusable annotations in a ConfigMap that can be applied to multiple Ingress resources or entire namespaces. This promotes consistency and reduces the need for repetitive configurations.
+- **Flexible and Scalable Application**: Apply annotation rules to individual Ingress resources or automatically propagate them across all Ingresses within a namespace, simplifying configuration management in your Kubernetes environment.
 - **Dynamic and Automatic Updates**: Any changes to the annotation rules in the ConfigMap are automatically applied to all relevant Ingress resources or namespaces. Use the `annotator.ingress.kubernetes.io/rules` annotation on Ingresses or namespaces to dynamically control which rules are applied, ensuring precise and up-to-date configurations.
-
+- 
 ## Usage
 1. Create a ConfigMap with your annotation rules:
 
