@@ -1,50 +1,26 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
+	"errors"
 	"flag"
 	"testing"
 
-	"github.com/jmnote/tester"
+	"github.com/jmnote/tester/testcase"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	"github.com/kuoss/ingress-annotator/cmd/mocks"
-	"github.com/kuoss/ingress-annotator/pkg/model"
 	"github.com/kuoss/ingress-annotator/pkg/testutil/fakeclient"
-	"github.com/kuoss/ingress-annotator/pkg/testutil/mockrulesstore"
+	"github.com/kuoss/ingress-annotator/pkg/testutil/mocks"
 )
 
-func setupMockManager(mockCtrl *gomock.Controller) *mocks.MockManager {
-	mockManager := mocks.NewMockManager(mockCtrl)
-	mockCache := mocks.NewMockCache(mockCtrl)
-
-	scheme := fakeclient.NewScheme()
-
-	fakeClient := fakeclient.NewClient(nil, &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "test-namespace",
-			Name:      "ingress-annotator",
-		},
-	})
-
-	mockManager.EXPECT().GetCache().Return(mockCache).AnyTimes()
-	mockManager.EXPECT().GetClient().Return(fakeClient).AnyTimes()
-	mockManager.EXPECT().GetScheme().Return(scheme).AnyTimes()
-	mockManager.EXPECT().GetControllerOptions().Return(config.Controller{}).AnyTimes()
-	mockManager.EXPECT().Add(gomock.Any()).Return(nil).AnyTimes()
-	mockManager.EXPECT().AddHealthzCheck(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	mockManager.EXPECT().AddReadyzCheck(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	mockManager.EXPECT().GetLogger().Return(zap.New(zap.WriteTo(nil))).AnyTimes()
-	mockManager.EXPECT().GetAPIReader().Return(fakeClient).AnyTimes()
-	return mockManager
-}
 func TestGetManagerOptions(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	metricsAddr := fs.String("metrics-bind-address", "0", "")
@@ -79,78 +55,134 @@ func TestGetManagerOptions(t *testing.T) {
 	assert.Equal(t, "annotator.ingress.kubernetes.io", opts.LeaderElectionID, "Expected leader election ID to match")
 }
 
-func TestRun_PODNamespaceNotSet(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-
-	mockManager := setupMockManager(mockCtrl)
-
-	t.Setenv("POD_NAMESPACE", "")
-	err := run(mockManager)
-	assert.Error(t, err)
-	assert.Equal(t, "POD_NAMESPACE environment variable is not set or is empty", err.Error())
+type managerOpts struct {
+	clientOpts         *fakeclient.ClientOpts
+	AddHealthzCheckErr error
+	AddReadyzCheckErr  error
+	StartErr           error
 }
 
-func TestRun_SuccessfulRun(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-
-	mockManager := setupMockManager(mockCtrl)
-
-	mockRulesStore := new(mockrulesstore.RulesStore)
-	rules := &model.Rules{
-		"default/example-ingress": {
-			Namespace: "default",
-			Ingress:   "example-ingress",
-			Annotations: map[string]string{
-				"new-key": "new-value",
-			},
-		},
+func setupMockManager(mockCtrl *gomock.Controller, opts *managerOpts, objs ...client.Object) *mocks.MockManager {
+	if opts == nil {
+		opts = &managerOpts{}
 	}
-	mockRulesStore.On("GetRules").Return(rules)
+	mockManager := mocks.NewMockManager(mockCtrl)
+	mockCache := mocks.NewMockCache(mockCtrl)
 
-	mockManager.EXPECT().Start(gomock.Any()).Return(nil).Times(1)
+	scheme := fakeclient.NewScheme()
+	fakeClient := fakeclient.NewClient(opts.clientOpts, objs...)
 
-	t.Setenv("POD_NAMESPACE", "test-namespace")
-	err := run(mockManager)
-	assert.NoError(t, err)
+	mockManager.EXPECT().GetCache().Return(mockCache).AnyTimes()
+	mockManager.EXPECT().GetClient().Return(fakeClient).AnyTimes()
+	mockManager.EXPECT().GetScheme().Return(scheme).AnyTimes()
+	mockManager.EXPECT().GetControllerOptions().Return(config.Controller{}).AnyTimes()
+	mockManager.EXPECT().Add(gomock.Any()).Return(nil).AnyTimes()
+	mockManager.EXPECT().AddHealthzCheck(gomock.Any(), gomock.Any()).Return(opts.AddHealthzCheckErr).AnyTimes()
+	mockManager.EXPECT().AddReadyzCheck(gomock.Any(), gomock.Any()).Return(opts.AddReadyzCheckErr).AnyTimes()
+	mockManager.EXPECT().GetLogger().Return(zap.New(zap.WriteTo(nil))).AnyTimes()
+	mockManager.EXPECT().GetAPIReader().Return(fakeClient).AnyTimes()
+	mockManager.EXPECT().Start(gomock.Any()).Return(opts.StartErr).AnyTimes()
+
+	return mockManager
 }
 
-func TestFetchConfigMapDirectly(t *testing.T) {
-	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "my-configmap"},
-		Data:       map[string]string{"key": "value"},
-	}
+func TestRun(t *testing.T) {
 	testCases := []struct {
-		name       string
-		clientOpts *fakeclient.ClientOpts
-		nn         types.NamespacedName
-		want       *corev1.ConfigMap
-		wantError  string
+		name              string
+		namespace         string
+		managerOpts       *managerOpts
+		cm                *corev1.ConfigMap
+		setupManagerError func(mgr *mocks.MockManager)
+		wantError         string
 	}{
 		{
-			name: "ConfigMap fetched successfully",
-			nn:   types.NamespacedName{Namespace: "default", Name: "my-configmap"},
-			want: cm,
+			name:      "no error with empty rules",
+			namespace: "test-namespace",
+			cm: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Namespace: "test-namespace", Name: "ingress-annotator"},
+				Data:       map[string]string{"rules": ""},
+			},
 		},
 		{
-			name:       "Client Get error",
-			clientOpts: &fakeclient.ClientOpts{GetError: true},
-			nn:         types.NamespacedName{Namespace: "default", Name: "error-configmap"},
-			wantError:  "failed to fetch ConfigMap: mocked Get error",
+			name:      "POD_NAMESPACE environment variable is empty",
+			namespace: "",
+			wantError: "POD_NAMESPACE environment variable is not set or is empty",
+		},
+		{
+			name:        "Error fetching ConfigMap due to mock GetError",
+			namespace:   "test-namespace",
+			managerOpts: &managerOpts{clientOpts: &fakeclient.ClientOpts{GetError: true}},
+			wantError:   "failed to fetch ConfigMap: mocked Get error",
+		},
+		{
+			name:      "Error fetching ConfigMap - ConfigMap not found",
+			namespace: "test-namespace",
+			cm:        &corev1.ConfigMap{},
+			wantError: `failed to fetch ConfigMap: configmaps "ingress-annotator" not found`,
+		},
+		{
+			name:      "Error setting up health check",
+			namespace: "test-namespace",
+			cm: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Namespace: "test-namespace", Name: "ingress-annotator"},
+				Data:       map[string]string{"rules": "invalid rules"},
+			},
+			wantError: "unable to start rules store: failed to initialize RulesStore: failed to extract rules from configMap: failed to unmarshal rules: yaml: unmarshal errors:\n  line 1: cannot unmarshal !!str `invalid...` into model.Rules",
+		},
+		{
+			name:      "Error setting up ready check",
+			namespace: "test-namespace",
+			cm: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Namespace: "test-namespace", Name: "ingress-annotator"},
+				Data:       map[string]string{"rules": ""},
+			},
+			managerOpts: &managerOpts{
+				AddHealthzCheckErr: errors.New("mocked AddHealthzCheckErr"),
+			},
+			wantError: "unable to set up health check: mocked AddHealthzCheckErr",
+		},
+		{
+			name:      "Error starting manager",
+			namespace: "test-namespace",
+			cm: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Namespace: "test-namespace", Name: "ingress-annotator"},
+				Data:       map[string]string{"rules": ""},
+			},
+			managerOpts: &managerOpts{
+				AddReadyzCheckErr: errors.New("mocked AddReadyzCheckErr"),
+			},
+			wantError: "unable to set up ready check: mocked AddReadyzCheckErr",
+		},
+		{
+			name:      "no error",
+			namespace: "test-namespace",
+			cm: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Namespace: "test-namespace", Name: "ingress-annotator"},
+				Data:       map[string]string{"rules": ""},
+			},
+			managerOpts: &managerOpts{
+				StartErr: errors.New("mocked StartErr"),
+			},
+			wantError: "problem running manager: mocked StartErr",
 		},
 	}
 
 	for i, tc := range testCases {
-		t.Run(tester.Name(i, tc.name), func(t *testing.T) {
-			client := fakeclient.NewClient(tc.clientOpts, cm)
-			got, err := fetchConfigMapDirectly(client, tc.nn)
+		t.Run(testcase.Name(i, tc.name), func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			defer mockCtrl.Finish()
+
+			t.Setenv("POD_NAMESPACE", tc.namespace)
+			mgr := setupMockManager(mockCtrl, tc.managerOpts, tc.cm)
+			if tc.setupManagerError != nil {
+				tc.setupManagerError(mgr)
+			}
+			err := run(mgr, context.TODO())
 			if tc.wantError == "" {
 				assert.NoError(t, err)
 			} else {
 				assert.EqualError(t, err, tc.wantError)
 			}
-			assert.Equal(t, tc.want, got)
 		})
 	}
 }

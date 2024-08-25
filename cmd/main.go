@@ -38,7 +38,9 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	"github.com/kuoss/ingress-annotator/controller"
+	"github.com/kuoss/ingress-annotator/controllers/configmapcontroller"
+	"github.com/kuoss/ingress-annotator/controllers/ingresscontroller"
+	"github.com/kuoss/ingress-annotator/controllers/namespacecontroller"
 	"github.com/kuoss/ingress-annotator/pkg/rulesstore"
 	// +kubebuilder:scaffold:imports
 )
@@ -61,7 +63,7 @@ func main() {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
-	if err := run(mgr); err != nil {
+	if err := run(mgr, ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "unable to run the manager")
 		os.Exit(1)
 	}
@@ -123,7 +125,7 @@ func getManagerOptions() ctrl.Options {
 	}
 }
 
-func run(mgr ctrl.Manager) error {
+func run(mgr ctrl.Manager, ctx context.Context) error {
 	ns, exists := os.LookupEnv("POD_NAMESPACE")
 	if !exists || ns == "" {
 		return errors.New("POD_NAMESPACE environment variable is not set or is empty")
@@ -143,18 +145,28 @@ func run(mgr ctrl.Manager) error {
 		return fmt.Errorf("unable to start rules store: %w", err)
 	}
 
-	if err = (&controller.ConfigMapReconciler{
+	if err = (&configmapcontroller.ConfigMapReconciler{
 		Client:     mgr.GetClient(),
 		NN:         nn,
 		RulesStore: rulesStore,
 	}).SetupWithManager(mgr); err != nil {
-		return fmt.Errorf("unable to create ConfigMapReconciler: %w", err)
+		return fmt.Errorf("unable to create ConfigMapReconciler: %w", err) // test unreachable
 	}
-	if err = (&controller.IngressReconciler{
+
+	ingressReconciler := &ingresscontroller.IngressReconciler{
 		Client:     mgr.GetClient(),
 		RulesStore: rulesStore,
+	}
+
+	if err = ingressReconciler.SetupWithManager(mgr); err != nil {
+		return fmt.Errorf("unable to create IngressReconciler: %w", err) // test unreachable
+	}
+
+	if err = (&namespacecontroller.NamespaceReconciler{
+		Client:            mgr.GetClient(),
+		IngressReconciler: ingressReconciler,
 	}).SetupWithManager(mgr); err != nil {
-		return fmt.Errorf("unable to create IngressReconciler: %w", err)
+		return fmt.Errorf("unable to create NamespaceReconciler: %w", err) // test unreachable
 	}
 	// +kubebuilder:scaffold:builder
 
@@ -166,7 +178,7 @@ func run(mgr ctrl.Manager) error {
 	}
 
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		return fmt.Errorf("problem running manager: %w", err)
 	}
 

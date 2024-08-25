@@ -1,9 +1,10 @@
 package rulesstore
 
 import (
+	"sync"
 	"testing"
 
-	"github.com/jmnote/tester"
+	"github.com/jmnote/tester/testcase"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 
@@ -11,199 +12,124 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	testCases := []struct {
-		cm        *corev1.ConfigMap
-		want      *RulesStore
-		wantError string
-	}{
-		{
-			cm:        nil,
-			wantError: "store.UpdateRules err: configMap is nil",
-		},
-		{
-			cm: &corev1.ConfigMap{},
-			want: &RulesStore{
-				Rules: &model.Rules{},
-			},
-		},
-		{
-			cm: &corev1.ConfigMap{
-				Data: map[string]string{
-					"rule1": "",
-				},
-			},
-			want: &RulesStore{
-				Rules: &model.Rules{},
-			},
-		},
-		{
-			cm: &corev1.ConfigMap{
-				Data: map[string]string{
-					"rule1": `annotations:
-  key1: value1
-namespace: test-namespace
-ingress: test-ingress`,
-				},
-			},
-			want: &RulesStore{
-				Rules: &model.Rules{
-					"rule1": model.Rule{
-						Annotations: model.Annotations{"key1": "value1"},
-						Namespace:   "test-namespace",
-						Ingress:     "test-ingress",
-					}},
-			},
-		},
-		{
-			cm: &corev1.ConfigMap{
-				Data: map[string]string{
-					"rule1": `annotations:
-  key1: value1
-namespace: test-namespace
-ingress: test-ingress`,
-				},
-			},
-			want: &RulesStore{
-				Rules: &model.Rules{
-					"rule1": model.Rule{
-						Annotations: model.Annotations{"key1": "value1"},
-						Namespace:   "test-namespace",
-						Ingress:     "test-ingress",
-					}},
-			},
-		},
-		{
-			cm: &corev1.ConfigMap{
-				Data: map[string]string{
-					"rule1": `invalid_data`,
-				},
-			},
-			wantError: "store.UpdateRules err: invalid data in ConfigMap key rule1: failed to unmarshal YAML: yaml: unmarshal errors:\n  line 1: cannot unmarshal !!str `invalid...` into model.Rule",
-		},
-		{
-			cm: &corev1.ConfigMap{
-				Data: map[string]string{
-					"rule1": `namespace: invalid_namespace!`,
-				},
-			},
-			wantError: "store.UpdateRules err: validateRule err: invalid namespace pattern: invalid_namespace!",
-		},
-	}
-	for i, tc := range testCases {
-		t.Run(tester.Name(i, tc), func(t *testing.T) {
-			got, err := New(tc.cm)
-			if tc.wantError == "" {
-				assert.NoError(t, err)
-				tc.want.rulesMutex = got.rulesMutex
-				assert.Equal(t, tc.want, got)
-				assert.Equal(t, tc.want.Rules, got.GetRules())
-			} else {
-				assert.EqualError(t, err, tc.wantError)
-				assert.Equal(t, got, tc.want)
-			}
-		})
-	}
-}
-
-func TestValidateRule(t *testing.T) {
-	testCases := []struct {
+	tests := []struct {
 		name      string
-		rule      model.Rule
+		cm        *corev1.ConfigMap
+		wantRules *model.Rules
 		wantError string
 	}{
 		{
-			name: "Valid Rule with Namespace and Ingress",
-			rule: model.Rule{
-				Namespace: "namespace-1",
-				Ingress:   "ingress-1",
+			name:      "Nil ConfigMap",
+			cm:        nil,
+			wantRules: nil,
+			wantError: "failed to initialize RulesStore: failed to extract rules from configMap: configMap is nil",
+		},
+		{
+			name: "Valid ConfigMap",
+			cm: &corev1.ConfigMap{
+				Data: map[string]string{
+					"rules": `
+rule1:
+  key1: value1`,
+				},
+			},
+			wantRules: &model.Rules{
+				"rule1": model.Annotations{"key1": "value1"},
 			},
 			wantError: "",
-		},
-		{
-			name: "Valid Rule with Namespace and empty Ingress",
-			rule: model.Rule{
-				Namespace: "namespace-1",
-				Ingress:   "",
-			},
-			wantError: "",
-		},
-		{
-			name: "Invalid Namespace pattern",
-			rule: model.Rule{
-				Namespace: "Invalid_Namespace",
-				Ingress:   "ingress-1",
-			},
-			wantError: "invalid namespace pattern: Invalid_Namespace",
-		},
-		{
-			name: "Invalid Ingress pattern",
-			rule: model.Rule{
-				Namespace: "namespace-1",
-				Ingress:   "Invalid,Ingress",
-			},
-			wantError: "invalid ingress pattern: Invalid,Ingress",
-		},
-		{
-			name: "Valid Namespace with wildcard and negation",
-			rule: model.Rule{
-				Namespace: "namespace-*",
-				Ingress:   "!ingress-*",
-			},
-			wantError: "",
-		},
-		{
-			name: "Invalid pattern with special characters",
-			rule: model.Rule{
-				Namespace: "namespace-!",
-				Ingress:   "ingress-1",
-			},
-			wantError: "invalid namespace pattern: namespace-!",
 		},
 	}
 
-	for i, tc := range testCases {
-		t.Run(tester.Name(i, tc.name), func(t *testing.T) {
-			err := validateRule(&tc.rule)
-			if tc.wantError == "" {
-				assert.NoError(t, err)
+	for i, tt := range tests {
+		t.Run(testcase.Name(i, tt.name), func(t *testing.T) {
+			store, err := New(tt.cm)
+
+			if tt.wantError != "" {
+				assert.Nil(t, store)
+				assert.EqualError(t, err, tt.wantError)
 			} else {
-				assert.EqualError(t, err, tc.wantError)
+				assert.NotNil(t, store)
+				assert.NoError(t, err)
+				assert.Equal(t, tt.wantRules, store.GetRules())
 			}
 		})
 	}
 }
 
-func TestValidate(t *testing.T) {
-	testCases := []struct {
-		pattern string
-		want    bool
-	}{
-		// true
-		{"", true},                 // Empty string
-		{"abc", true},              // Single string
-		{"abc,def", true},          // Comma-separated strings
-		{"!abc", true},             // Pattern with an exclamation mark
-		{"!abc,def", true},         // Pattern with exclamation mark and comma-separated strings
-		{"abc-def", true},          // String with a hyphen
-		{"abc*", true},             // String with an asterisk
-		{"abc,def,ghi", true},      // Multiple comma-separated strings
-		{"!abc,def-ghi", true},     // Pattern with exclamation mark and hyphen
-		{"abc,def-ghi,jkl*", true}, // Combination of comma, hyphen, and asterisk
-		// false
-		{"abc,", false},          // Invalid pattern ending with a comma
-		{"abc,def!", false},      // Invalid pattern with an exclamation mark in the wrong place
-		{"!abc,", false},         // Invalid pattern ending with a comma after exclamation mark
-		{"abc,def*", true},       // Pattern with an asterisk
-		{"!abc,def*", true},      // Pattern with exclamation mark and asterisk
-		{"abc@def", false},       // Invalid pattern with an incorrect special character
-		{"abc,def,", false},      // Invalid comma placement
-		{"!abc,def,ghi!", false}, // Exclamation mark in the wrong place
+func TestGetRules(t *testing.T) {
+	wantRules := &model.Rules{
+		"rule1": model.Annotations{"key1": "value1"},
 	}
 
-	for i, tc := range testCases {
-		t.Run(tester.Name(i, tc.pattern), func(t *testing.T) {
-			got := validate(tc.pattern)
-			assert.Equal(t, tc.want, got)
+	store := &RulesStore{
+		Rules:      wantRules,
+		rulesMutex: &sync.Mutex{},
+	}
+
+	gotRules := store.GetRules()
+
+	assert.Equal(t, wantRules, gotRules)
+}
+
+func TestUpdateRules(t *testing.T) {
+	tests := []struct {
+		name      string
+		cm        *corev1.ConfigMap
+		wantRules *model.Rules
+		wantError string
+	}{
+		{
+			name:      "Nil ConfigMap",
+			cm:        nil,
+			wantError: "failed to extract rules from configMap: configMap is nil",
+		},
+		{
+			name:      "Empty ConfigMap",
+			cm:        &corev1.ConfigMap{},
+			wantError: "failed to extract rules from configMap: configMap missing 'rules' key",
+		},
+		{
+			name: "Invalid YAML in ConfigMap",
+			cm: &corev1.ConfigMap{
+				Data: map[string]string{
+					"rules": `
+rule1:
+  invalid_data`,
+				},
+			},
+			wantError: "failed to extract rules from configMap: failed to unmarshal rules: yaml: unmarshal errors:\n  line 3: cannot unmarshal !!str `invalid...` into model.Annotations",
+		},
+		{
+			name: "Valid ConfigMap",
+			cm: &corev1.ConfigMap{
+				Data: map[string]string{
+					"rules": `
+rule1:
+  key1: value1`,
+				},
+			},
+			wantRules: &model.Rules{
+				"rule1": model.Annotations{"key1": "value1"},
+			},
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(testcase.Name(i, tt.name), func(t *testing.T) {
+			store := &RulesStore{
+				rulesMutex: &sync.Mutex{},
+			}
+			err := store.UpdateRules(tt.cm)
+
+			if tt.wantError != "" {
+				assert.EqualError(t, err, tt.wantError)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			if tt.wantRules != nil {
+				assert.Equal(t, tt.wantRules, store.GetRules())
+			}
 		})
 	}
 }

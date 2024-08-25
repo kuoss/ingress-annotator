@@ -13,7 +13,7 @@ RUN go mod download
 
 # Copy the go source
 COPY cmd/main.go cmd/main.go
-COPY controller/ controller/
+COPY controllers/ controllers/
 COPY pkg/ pkg/
 
 # Build
