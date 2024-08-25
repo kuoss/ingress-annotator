@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package configmapcontroller
 
 import (
 	"context"
@@ -26,7 +26,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/kuoss/ingress-annotator/pkg/rulesstore"
 )
@@ -55,25 +54,22 @@ func (r *ConfigMapReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, nil
 	}
 
-	logger := log.FromContext(ctx).WithValues("kind", "ConfigMap", "namespace", req.Namespace, "name", req.Name)
+	logger := ctrl.LoggerFrom(ctx).WithValues("kind", "ConfigMap", "namespace", req.Namespace, "name", req.Name)
 	logger.Info("Reconciling ConfigMap")
 
 	// Fetch the ConfigMap resource
 	var cm corev1.ConfigMap
 	if err := r.Get(ctx, r.NN, &cm); err != nil {
 		if errors.IsNotFound(err) {
-			logger.Error(err, "ConfigMap not found, will retry after delay")
-			// Retry after a delay if the ConfigMap is not found
-			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+			logger.Error(err, "ConfigMap %s not found, will retry after delay", r.NN)
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
-		// Return the error with context if the Get operation fails
-		return ctrl.Result{}, fmt.Errorf("failed to get ConfigMap: %w", err)
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, fmt.Errorf("failed to get ConfigMap: %w", err)
 	}
 
 	// Update rules in the RulesStore
 	if err := r.RulesStore.UpdateRules(&cm); err != nil {
-		// Return the error with context if the update fails
-		return ctrl.Result{}, fmt.Errorf("failed to update rules in rules store: %w", err)
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, fmt.Errorf("failed to update rules in rules store: %w", err)
 	}
 
 	logger.Info("Successfully reconciled ConfigMap")

@@ -3,8 +3,6 @@ package rulesstore
 import (
 	"errors"
 	"fmt"
-	"regexp"
-	"strings"
 	"sync"
 
 	"gopkg.in/yaml.v3"
@@ -28,7 +26,7 @@ func New(cm *corev1.ConfigMap) (*RulesStore, error) {
 		rulesMutex: &sync.Mutex{},
 	}
 	if err := store.UpdateRules(cm); err != nil {
-		return nil, fmt.Errorf("store.UpdateRules err: %w", err)
+		return nil, fmt.Errorf("failed to initialize RulesStore: %w", err)
 	}
 	return store, nil
 }
@@ -41,56 +39,36 @@ func (s *RulesStore) GetRules() *model.Rules {
 }
 
 func (s *RulesStore) UpdateRules(cm *corev1.ConfigMap) error {
-	if cm == nil {
-		return errors.New("configMap is nil")
-	}
-	newRules := model.Rules{}
-	for key, text := range cm.Data {
-		text = strings.TrimSpace(text)
-		if text == "" {
-			continue
-		}
-		rule, err := getRuleValueFromText(text)
-		if err != nil {
-			return fmt.Errorf("invalid data in ConfigMap key %s: %w", key, err)
-		}
-		if err := validateRule(rule); err != nil {
-			return fmt.Errorf("validateRule err: %w", err)
-		}
-		newRules[key] = *rule
+	rules, err := getRulesFromConfigMap(cm)
+	if err != nil {
+		return fmt.Errorf("failed to extract rules from configMap: %w", err)
 	}
 
+	s.updateRules(rules)
+	return nil
+}
+
+func (s *RulesStore) updateRules(rules model.Rules) {
 	s.rulesMutex.Lock()
 	defer s.rulesMutex.Unlock()
 
-	s.Rules = &newRules
-	return nil
+	s.Rules = &rules
 }
 
-func getRuleValueFromText(text string) (*model.Rule, error) {
-	var rule model.Rule
-	err := yaml.Unmarshal([]byte(text), &rule)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal YAML: %v", err)
+func getRulesFromConfigMap(cm *corev1.ConfigMap) (model.Rules, error) {
+	if cm == nil {
+		return nil, errors.New("configMap is nil")
 	}
-	return &rule, nil
-}
 
-func validateRule(rule *model.Rule) error {
-	if ok := validate(rule.Namespace); !ok {
-		return fmt.Errorf("invalid namespace pattern: %s", rule.Namespace)
+	rulesText, ok := cm.Data["rules"]
+	if !ok {
+		return nil, errors.New("configMap missing 'rules' key")
 	}
-	if ok := validate(rule.Ingress); !ok {
-		return fmt.Errorf("invalid ingress pattern: %s", rule.Ingress)
-	}
-	return nil
-}
 
-func validate(pattern string) bool {
-	if pattern == "" {
-		return true
+	var rules model.Rules
+	if err := yaml.Unmarshal([]byte(rulesText), &rules); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal rules: %w", err)
 	}
-	regexPattern := `^!?(?:[a-z0-9\-\*]+(?:,[a-z0-9\-\*]+)*)$`
-	regex := regexp.MustCompile(regexPattern)
-	return regex.MatchString(pattern)
+
+	return rules, nil
 }

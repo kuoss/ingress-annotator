@@ -34,6 +34,24 @@ func TestNewClient_GetError(t *testing.T) {
 	assert.EqualError(t, err, "mocked Get error")
 }
 
+func TestNewClient_NotFoundError(t *testing.T) {
+	opts := &ClientOpts{NotFoundError: true}
+	cl := NewClient(opts)
+	pod := &corev1.Pod{}
+	err := cl.Get(context.TODO(), types.NamespacedName{Name: "non-existent-pod", Namespace: "default"}, pod)
+	assert.EqualError(t, err, `mocked NotFound error: Resource "non-existent-pod" not found`)
+}
+
+func TestNewClient_ListError(t *testing.T) {
+	opts := &ClientOpts{ListError: true}
+	cl := NewClient(opts)
+
+	podList := &corev1.PodList{}
+	err := cl.List(context.TODO(), podList)
+	assert.EqualError(t, err, "mocked List error")
+	assert.Empty(t, podList.Items)
+}
+
 func TestNewClient_UpdateError(t *testing.T) {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{

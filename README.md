@@ -5,14 +5,12 @@
 [![GitHub license](https://img.shields.io/github/license/kuoss/ingress-annotator.svg)](https://github.com/kuoss/ingress-annotator/blob/main/LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/kuoss/ingress-annotator)](https://goreportcard.com/report/github.com/kuoss/ingress-annotator)
 
-`ingress-annotator` is a Kubernetes utility designed to dynamically manage ingress annotations based on predefined rules set in a ConfigMap. This tool simplifies the process of annotating ingresses in various namespaces, ensuring consistency and reducing manual configuration.
+The **Ingress Annotator** is a Kubernetes utility designed to streamline the management and application of annotations across Ingress resources and entire namespaces. With this tool, you can define reusable annotation rules in a ConfigMap, which are automatically propagated to your Ingresses or Namespaces based on simple annotation references. This ensures that updates to your annotation rules are immediately and consistently applied across your Kubernetes environment, reducing the risk of errors and making your deployments more maintainable.
 
 ## Features
-
-- **Dynamic Annotation Management**: Automatically applies annotations to ingresses based on the rules defined in a ConfigMap.
-- **Namespace Specific Rules**: Apply annotations to ingresses in specified namespaces.
-- **Ingress Specific Rules**: Apply annotations to specific ingresses within a namespace.
-- **Wildcard Support**: Use wildcard patterns to match namespaces and ingress names.
+- **Centralized Annotation Management**: Define reusable annotations in a ConfigMap that can be applied to multiple Ingress resources or entire namespaces. This ensures consistency and reduces the need for repetitive configurations.
+- **Flexible and Scalable Application**: Apply annotation rules to individual Ingress resources or automatically propagate them to all Ingresses within a namespace, simplifying configuration management across your Kubernetes environment.
+- **Dynamic and Automatic Updates**: Any changes to the annotation rules in the ConfigMap are automatically applied to all relevant Ingress resources or namespaces. Use the `annotator.ingress.kubernetes.io/rules` annotation on Ingresses or namespaces to dynamically control which rules are applied, ensuring precise and up-to-date configurations.
 
 ## Usage
 1. Create a ConfigMap with your annotation rules:
@@ -21,49 +19,72 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: ingress-annotator-rules
+  name: ingress-annotator
   namespace: ingress-annotator
 data:
-  # Rule to set proxy body size limit to 8MB for ingress resources 
-  # in namespace prod1
-  proxy-body-size: |
-    namespace: "prod1"
-    annotations:
+  # Annotation rules that can be referenced in Ingress or Namespace annotations
+  rules: |
+    proxy-body-size:
       nginx.ingress.kubernetes.io/proxy-body-size: "8m"
-    
-  # Rule to rewrite the request URI to "/" for the specific ingress 
-  # resource named ingress1 in namespace prod2
-  rewrite-target: |
-    namespace: "prod2"
-    ingress: "ingress1"
-    annotations:
+    rewrite-target:
       nginx.ingress.kubernetes.io/rewrite-target: "/"
-
-  # Rule to configure OAuth2 authentication for ingress resources 
-  # in namespaces dev1 and dev2
-  oauth2-proxy: |
-    namespace: "dev1,dev2"
-    annotations:
+    oauth2-proxy:
       nginx.ingress.kubernetes.io/auth-signin: "https://oauth2-proxy.example.com/oauth2/start?rd=https://$host$request_uri"
       nginx.ingress.kubernetes.io/auth-url: "https://oauth2-proxy.example.com/oauth2/auth"
-
-  # Rule to set a whitelist of source IP ranges for ingress resources with 
-  # names ending in "-priv" in namespaces that start with "dev"
-  private: |
-    namespace: "dev*"
-    ingress: "*-priv"
-    annotations:
+    private:
       nginx.ingress.kubernetes.io/whitelist-source-range: "192.168.1.0/24,10.0.0.0/16"
 ```
 
 2. Apply the ConfigMap:
+
 ```
 kubectl apply -f configmap.yaml
 ```
 
-3. Verify that the annotations are applied to the specified ingress resources:
+3. Annotate Ingresses or Namespaces using the annotation `annotator.ingress.kubernetes.io/rules` as follows:
+
+For Ingress:
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress1
+  namespace: namespace1
+  annotations:
+    annotator.ingress.kubernetes.io/rules: "oauth2-proxy,private"
+    ...
 ```
-kubectl describe ingress <ingress-name> -n <namespace>
+
+For Namespace:
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: namespace1
+  annotations:
+    annotator.ingress.kubernetes.io/rules: "oauth2-proxy,private"
+    ...
+```
+
+4. Verify that the annotations have been applied to the specified Ingress resources:
+```
+kubectl get ingress <ingress-name> -n <namespace> -o yaml
+```
+
+Example output:
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress1
+  namespace: namespace1
+  annotations:
+    annotator.ingress.kubernetes.io/managed-annotations: "{\"annotator.ingress.kubernetes.io/rules\":\"oauth2-proxy,private\",\"nginx.ingress.kubernetes.io/auth-signin\":\"https://oauth2-proxy.example.com/oauth2/start?rd=https://$host$request_uri\",\"nginx.ingress.kubernetes.io/auth-url\":\"https://oauth2-proxy.example.com/oauth2/auth\",\"nginx.ingress.kubernetes.io/whitelist-source-range\":\"192.168.1.0/24,10.0.0.0/16\"}"
+    annotator.ingress.kubernetes.io/rules: "oauth2-proxy,private"
+    nginx.ingress.kubernetes.io/auth-signin: "https://oauth2-proxy.example.com/oauth2/start?rd=https://$host$request_uri"
+    nginx.ingress.kubernetes.io/auth-url: "https://oauth2-proxy.example.com/oauth2/auth"
+    nginx.ingress.kubernetes.io/whitelist-source-range: "192.168.1.0/24,10.0.0.0/16"
+    ...
 ```
 
 ### Code of Conduct

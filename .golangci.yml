@@ -19,6 +19,7 @@ issues:
     - path: "_test.go"
       linters:
         - lll
+        - unparam
 linters:
   disable-all: true
   enable:
