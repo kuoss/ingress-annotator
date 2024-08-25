@@ -127,8 +127,7 @@ func (r *IngressReconciler) removeManagedAnnotations(scope *ingressScope) {
 	managedAnnotations := make(model.Annotations)
 	if value, ok := scope.ingress.Annotations[model.ManagedAnnotationsKey]; ok && value != "" {
 		if err := json.Unmarshal([]byte(value), &managedAnnotations); err != nil {
-			scope.logger.Error(err, "Failed to unmarshal last applied annotations")
-			return // Stop further processing if unmarshalling fails
+			scope.logger.Error(err, "Warning: Failed to unmarshal managed annotations")
 		}
 	}
 
@@ -145,6 +144,9 @@ func (r *IngressReconciler) addNewAnnotations(scope *ingressScope) {
 	newAnnotations := r.getNewAnnotations(scope)
 	for key, value := range newAnnotations {
 		scope.updatedAnnotations[key] = value
+	}
+	if len(newAnnotations) == 0 {
+		return
 	}
 
 	bytes, err := marshal(newAnnotations)
