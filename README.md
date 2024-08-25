@@ -5,7 +5,7 @@
 [![GitHub license](https://img.shields.io/github/license/kuoss/ingress-annotator.svg)](https://github.com/kuoss/ingress-annotator/blob/main/LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/kuoss/ingress-annotator)](https://goreportcard.com/report/github.com/kuoss/ingress-annotator)
 
-The **Ingress Annotator** is a Kubernetes utility designed to streamline the management and application of annotations across Ingress resources and entire namespaces. With this tool, you can define reusable annotation rules in a ConfigMap, which are automatically propagated to your Ingresses or Namespaces based on simple annotation references. This ensures that updates to your annotation rules are immediately and consistently applied across your Kubernetes environment, reducing the risk of errors and making your deployments more maintainable.
+The **Ingress Annotator** is a Kubernetes utility designed to streamline the management and application of annotations across Ingress resources within your clusters. With this tool, you can define reusable annotation rules in a ConfigMap, which are automatically propagated to your Ingresses or all Ingresses within a specified namespace based on simple annotation references. This ensures that updates to your annotation rules are immediately and consistently applied across relevant Ingress resources, reducing the risk of errors and making your deployments more maintainable.
 
 ## Features
 - **Centralized Annotation Management**: Define reusable annotations in a ConfigMap that can be applied to multiple Ingress resources or entire namespaces. This ensures consistency and reduces the need for repetitive configurations.
