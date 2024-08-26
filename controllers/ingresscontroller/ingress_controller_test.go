@@ -63,6 +63,17 @@ func TestIngressReconciler_Reconcile(t *testing.T) {
 			wantGetError: `ingresses.networking.k8s.io "xxx" not found`,
 		},
 		{
+			name:      "IngressWithAnnotations_ShouldNotRemoveExistingAnnotations",
+			namespace: &corev1.Namespace{ObjectMeta: ctrl.ObjectMeta{Name: "default"}},
+			ingressAnnotations: map[string]string{
+				"example-key": "example-value",
+			},
+			wantResult: ctrl.Result{},
+			wantAnnotations: map[string]string{
+				"example-key": "example-value",
+			},
+		},
+		{
 			name:      "InvalidManagedAnnotationsWithNamespace_ShouldResetInvalidAnnotations",
 			namespace: &corev1.Namespace{ObjectMeta: ctrl.ObjectMeta{Name: "default"}},
 			ingressAnnotations: map[string]string{
