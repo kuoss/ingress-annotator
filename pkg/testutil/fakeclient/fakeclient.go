@@ -33,10 +33,11 @@ func NewManager() manager.Manager {
 }
 
 type ClientOpts struct {
-	GetError      bool
-	NotFoundError bool
-	ListError     bool
-	UpdateError   bool
+	GetError            bool
+	GetNotFoundError    bool
+	ListError           bool
+	UpdateError         bool
+	UpdateConflictError bool
 }
 
 func NewClient(opts *ClientOpts, objs ...client.Object) client.Client {
@@ -57,8 +58,7 @@ func createInterceptorFuncs(opts *ClientOpts) interceptor.Funcs {
 
 	funcs := interceptor.Funcs{}
 
-	switch {
-	case opts.GetError:
+	if opts.GetError {
 		funcs.Get = func(
 			ctx context.Context,
 			client client.WithWatch,
@@ -66,9 +66,11 @@ func createInterceptorFuncs(opts *ClientOpts) interceptor.Funcs {
 			obj client.Object,
 			opts ...client.GetOption,
 		) error {
-			return errors.New("mocked Get error")
+			return errors.New("mocked GetError")
 		}
-	case opts.NotFoundError:
+	}
+
+	if opts.GetNotFoundError {
 		funcs.Get = func(
 			ctx context.Context,
 			client client.WithWatch,
@@ -77,7 +79,7 @@ func createInterceptorFuncs(opts *ClientOpts) interceptor.Funcs {
 			opts ...client.GetOption,
 		) error {
 			err := apierrors.NewNotFound(schema.GroupResource{Resource: "Resource"}, key.Name)
-			return fmt.Errorf("mocked NotFound error: %w", err)
+			return fmt.Errorf("mocked GetNotFoundError: %w", err)
 		}
 	}
 
@@ -88,7 +90,7 @@ func createInterceptorFuncs(opts *ClientOpts) interceptor.Funcs {
 			list client.ObjectList,
 			opts ...client.ListOption,
 		) error {
-			return errors.New("mocked List error")
+			return errors.New("mocked ListError")
 		}
 	}
 
@@ -99,7 +101,22 @@ func createInterceptorFuncs(opts *ClientOpts) interceptor.Funcs {
 			obj client.Object,
 			opts ...client.UpdateOption,
 		) error {
-			return errors.New("mocked Update error")
+			return errors.New("mocked UpdateError")
+		}
+	}
+	if opts.UpdateConflictError {
+		funcs.Update = func(
+			ctx context.Context,
+			client client.WithWatch,
+			obj client.Object,
+			opts ...client.UpdateOption,
+		) error {
+			err := apierrors.NewConflict(
+				schema.GroupResource{Resource: "ingresses.networking.k8s.io"},
+				obj.GetName(),
+				errors.New("the object has been modified; please apply your changes to the latest version and try again"),
+			)
+			return fmt.Errorf("mocked UpdateConflictError: %w", err)
 		}
 	}
 

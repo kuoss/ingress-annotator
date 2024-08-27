@@ -31,10 +31,7 @@ import (
 
 	"github.com/kuoss/ingress-annotator/pkg/model"
 	"github.com/kuoss/ingress-annotator/pkg/rulesstore"
-)
-
-var (
-	marshal = json.Marshal
+	"github.com/kuoss/ingress-annotator/pkg/util"
 )
 
 type ingressScope struct {
@@ -97,7 +94,6 @@ func (r *IngressReconciler) reconcileIngress(ctx context.Context, scope *ingress
 
 	// Early exit if there are no changes to annotations.
 	if annotationsEqual(originalAnnotations, scope.updatedAnnotations) {
-		scope.logger.Info("No changes detected in annotations; skipping update")
 		return ctrl.Result{}, nil
 	}
 
@@ -149,12 +145,8 @@ func (r *IngressReconciler) addNewAnnotations(scope *ingressScope) {
 		return
 	}
 
-	bytes, err := marshal(newAnnotations)
-	if err != nil {
-		scope.logger.Error(err, "Failed to marshal new annotations")
-		return // Stop further processing if marshalling fails
-	}
-	scope.updatedAnnotations[model.ManagedAnnotationsKey] = string(bytes)
+	b := util.MustMarshalJSON(newAnnotations)
+	scope.updatedAnnotations[model.ManagedAnnotationsKey] = string(b)
 }
 
 func (r *IngressReconciler) getNewAnnotations(scope *ingressScope) model.Annotations {

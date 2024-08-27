@@ -49,26 +49,26 @@ func TestNamespaceReconciler_Reconcile(t *testing.T) {
 		},
 		{
 			namespace:  &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-namespace"}},
-			clientOpts: &fakeclient.ClientOpts{NotFoundError: true},
+			clientOpts: &fakeclient.ClientOpts{GetNotFoundError: true},
 			wantResult: ctrl.Result{},
 		},
 		{
 			namespace:  &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-namespace"}},
 			clientOpts: &fakeclient.ClientOpts{GetError: true},
 			wantResult: ctrl.Result{},
-			wantError:  "mocked Get error",
+			wantError:  "mocked GetError",
 		},
 		{
 			namespace:  &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-namespace"}},
 			clientOpts: &fakeclient.ClientOpts{ListError: true},
 			wantResult: ctrl.Result{},
-			wantError:  "failed to annotate ingresses: failed to list ingresses: mocked List error",
+			wantError:  "failed to annotate ingresses: failed to list ingresses: mocked ListError",
 		},
 		{
 			namespace:  &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-namespace"}},
 			clientOpts: &fakeclient.ClientOpts{UpdateError: true},
 			wantResult: ctrl.Result{},
-			wantError:  "failed to annotate ingresses: failed to annotate ingress: failed to update ingress test-namespace/test-ingress: mocked Update error",
+			wantError:  "failed to annotate ingresses: failed to annotate ingress: failed to update ingress test-namespace/test-ingress: mocked UpdateError",
 		},
 	}
 
@@ -94,6 +94,58 @@ func TestNamespaceReconciler_Reconcile(t *testing.T) {
 				assert.EqualError(t, err, tt.wantError)
 			}
 			assert.Equal(t, tt.wantResult, result)
+		})
+	}
+}
+
+func TestNamespaceReconciler_annotateIngress(t *testing.T) {
+	s := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(s))
+	require.NoError(t, networkingv1.AddToScheme(s))
+
+	tests := []struct {
+		name       string
+		ingress    *networkingv1.Ingress
+		clientOpts *fakeclient.ClientOpts
+		wantError  string
+	}{
+		{
+			name:    "successful annotation",
+			ingress: &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: "test-ingress", Namespace: "test-namespace"}},
+		},
+		{
+			name:       "get error",
+			ingress:    &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: "test-ingress", Namespace: "test-namespace"}},
+			clientOpts: &fakeclient.ClientOpts{GetError: true},
+			wantError:  "failed to get latest ingress test-namespace/test-ingress: mocked GetError",
+		},
+		{
+			name:       "update error",
+			ingress:    &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: "test-ingress", Namespace: "test-namespace"}},
+			clientOpts: &fakeclient.ClientOpts{UpdateError: true},
+			wantError:  "failed to update ingress test-namespace/test-ingress: mocked UpdateError",
+		},
+		{
+			name:       "update conflict error",
+			ingress:    &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: "test-ingress", Namespace: "test-namespace"}},
+			clientOpts: &fakeclient.ClientOpts{UpdateConflictError: true},
+			wantError:  `mocked UpdateConflictError: Operation cannot be fulfilled on ingresses.networking.k8s.io "test-ingress": the object has been modified; please apply your changes to the latest version and try again`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := fakeclient.NewClient(tt.clientOpts, tt.ingress)
+			r := &NamespaceReconciler{
+				Client: client,
+			}
+
+			err := r.annotateIngress(context.TODO(), *tt.ingress)
+			if tt.wantError != "" {
+				require.EqualError(t, err, tt.wantError)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }

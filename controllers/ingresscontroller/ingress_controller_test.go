@@ -2,7 +2,6 @@ package ingresscontroller
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -160,14 +159,14 @@ func TestIngressReconciler_Reconcile(t *testing.T) {
 				"example-key": "example-value",
 			},
 			wantResult: ctrl.Result{RequeueAfter: 30 * time.Second},
-			wantError:  "mocked Get error",
+			wantError:  "mocked GetError",
 		},
 		{
 			name:         "RulesProvidedButIngressNotFound_ShouldReturnNotFoundError",
-			clientOpts:   &fakeclient.ClientOpts{NotFoundError: true},
+			clientOpts:   &fakeclient.ClientOpts{GetNotFoundError: true},
 			namespace:    &corev1.Namespace{ObjectMeta: ctrl.ObjectMeta{Name: "default"}},
 			wantResult:   ctrl.Result{},
-			wantGetError: "mocked NotFound error: Resource \"my-ingress\" not found",
+			wantGetError: "mocked GetNotFoundError: Resource \"my-ingress\" not found",
 		},
 		{
 			name:       "ClientUpdateError_ShouldRequeueAfterError",
@@ -178,7 +177,7 @@ func TestIngressReconciler_Reconcile(t *testing.T) {
 				"annotator.ingress.kubernetes.io/rules":               "rule1",
 			},
 			wantResult: ctrl.Result{RequeueAfter: 30 * time.Second},
-			wantError:  "mocked Update error",
+			wantError:  "mocked UpdateError",
 		},
 	}
 
@@ -295,39 +294,6 @@ func TestCopyAnnotations(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestIngressReconciler_addNewAnnotations_MarshalError(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-
-	originalMarshal := marshal
-	defer func() {
-		marshal = originalMarshal
-	}()
-	marshal = func(v interface{}) ([]byte, error) {
-		return nil, errors.New("mock marshalling error")
-	}
-
-	rules := &model.Rules{
-		"rule1": {
-			"new-key": "new-value",
-		},
-	}
-	store := mocks.NewMockIRulesStore(mockCtrl)
-	store.EXPECT().GetRules().Return(rules).AnyTimes()
-	reconciler := &IngressReconciler{
-		RulesStore: store,
-	}
-
-	scope := &ingressScope{
-		namespace: &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{}}},
-		ingress: &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
-			"annotator.ingress.kubernetes.io/rules": "rule1",
-		}}},
-		updatedAnnotations: map[string]string{},
-	}
-	reconciler.addNewAnnotations(scope)
 }
 
 func TestGetRuleNamesFromObject(t *testing.T) {
