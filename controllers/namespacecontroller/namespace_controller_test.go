@@ -129,7 +129,7 @@ func TestNamespaceReconciler_annotateIngress(t *testing.T) {
 			name:       "update conflict error",
 			ingress:    &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: "test-ingress", Namespace: "test-namespace"}},
 			clientOpts: &fakeclient.ClientOpts{UpdateConflictError: true},
-			wantError:  `failed to update ingress test-namespace/test-ingress: mocked UpdateConflictError: Operation cannot be fulfilled on ingresses.networking.k8s.io "test-ingress": the object has been modified; please apply your changes to the latest version and try again`,
+			wantError:  `mocked UpdateConflictError: Operation cannot be fulfilled on ingresses.networking.k8s.io "test-ingress": the object has been modified; please apply your changes to the latest version and try again`,
 		},
 	}
 
@@ -142,8 +142,7 @@ func TestNamespaceReconciler_annotateIngress(t *testing.T) {
 
 			err := r.annotateIngress(context.TODO(), *tt.ingress)
 			if tt.wantError != "" {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.wantError)
+				require.EqualError(t, err, tt.wantError)
 			} else {
 				require.NoError(t, err)
 			}
