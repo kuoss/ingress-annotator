@@ -68,9 +68,15 @@ func (r *ConfigMapReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// Update rules in the RulesStore
+	oldRules := r.RulesStore.GetRules()
+	logger.Info("Updating rules", "oldRules", oldRules)
+
 	if err := r.RulesStore.UpdateRules(&cm); err != nil {
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, fmt.Errorf("failed to update rules in rules store: %w", err)
 	}
+
+	newRules := r.RulesStore.GetRules()
+	logger.Info("Rules updated", "newRules", newRules)
 
 	logger.Info("Successfully reconciled ConfigMap")
 	return ctrl.Result{}, nil

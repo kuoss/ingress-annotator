@@ -23,7 +23,9 @@ import (
 	"github.com/kuoss/ingress-annotator/pkg/model"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -87,9 +89,17 @@ func (r *NamespaceReconciler) annotateIngressesInNamespace(ctx context.Context, 
 }
 
 func (r *NamespaceReconciler) annotateIngress(ctx context.Context, ing networkingv1.Ingress) error {
-	ing.SetAnnotations(map[string]string{model.ReconcileKey: "true"})
-	if err := r.Update(ctx, &ing); err != nil {
-		return fmt.Errorf("failed to update ingress %s/%s: %w", ing.Namespace, ing.Name, err)
-	}
-	return nil
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		if err := r.Get(ctx, client.ObjectKey{Name: ing.Name, Namespace: ing.Namespace}, &ing); err != nil {
+			return fmt.Errorf("failed to get latest ingress %s/%s: %w", ing.Namespace, ing.Name, err)
+		}
+		ing.SetAnnotations(map[string]string{model.ReconcileKey: "true"})
+		if err := r.Update(ctx, &ing); err != nil {
+			if apierrors.IsConflict(err) {
+				return err
+			}
+			return fmt.Errorf("failed to update ingress %s/%s: %w", ing.Namespace, ing.Name, err)
+		}
+		return nil
+	})
 }

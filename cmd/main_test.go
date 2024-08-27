@@ -112,7 +112,7 @@ func TestRun(t *testing.T) {
 			name:        "Error fetching ConfigMap due to mock GetError",
 			namespace:   "test-namespace",
 			managerOpts: &managerOpts{clientOpts: &fakeclient.ClientOpts{GetError: true}},
-			wantError:   "failed to fetch ConfigMap: mocked Get error",
+			wantError:   "failed to fetch ConfigMap: mocked GetError",
 		},
 		{
 			name:      "Error fetching ConfigMap - ConfigMap not found",

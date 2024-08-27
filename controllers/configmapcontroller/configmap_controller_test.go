@@ -75,12 +75,12 @@ func TestConfigMapReconciler_Reconcile(t *testing.T) {
 			cm:         createConfigMap("default", "ingress-annotator", ""),
 			nn:         types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
 			requestNN:  types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
-			wantError:  "failed to get ConfigMap: mocked Get error",
+			wantError:  "failed to get ConfigMap: mocked GetError",
 			want:       ctrl.Result{RequeueAfter: 30 * time.Second},
 		},
 		{
 			name:       "ConfigMap not found should requeue after 30 seconds",
-			clientOpts: &fakeclient.ClientOpts{NotFoundError: true}, // Simulate a NotFound error on Get
+			clientOpts: &fakeclient.ClientOpts{GetNotFoundError: true}, // Simulate a NotFound error on Get
 			cm:         createConfigMap("default", "ingress-annotator", ""),
 			nn:         types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
 			requestNN:  types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
