@@ -62,13 +62,13 @@ func TestNamespaceReconciler_Reconcile(t *testing.T) {
 			namespace:  &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-namespace"}},
 			clientOpts: &fakeclient.ClientOpts{ListError: true},
 			wantResult: ctrl.Result{},
-			wantError:  "failed to annotate ingresses: failed to list ingresses: mocked ListError",
+			wantError:  "failed to annotateIngressesInNamespace: failed to list ingresses: mocked ListError",
 		},
 		{
 			namespace:  &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-namespace"}},
 			clientOpts: &fakeclient.ClientOpts{UpdateError: true},
 			wantResult: ctrl.Result{},
-			wantError:  "failed to annotate ingresses: failed to annotate ingress: failed to update ingress test-namespace/test-ingress: mocked UpdateError",
+			wantError:  "failed to annotateIngressesInNamespace: failed to annotateIngress: failed to update ingress test-namespace/test-ingress: mocked UpdateError",
 		},
 	}
 
@@ -117,7 +117,7 @@ func TestNamespaceReconciler_annotateIngress(t *testing.T) {
 			name:       "get error",
 			ingress:    &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: "test-ingress", Namespace: "test-namespace"}},
 			clientOpts: &fakeclient.ClientOpts{GetError: true},
-			wantError:  "failed to get latest ingress test-namespace/test-ingress: mocked GetError",
+			wantError:  "failed to get ingress test-namespace/test-ingress: mocked GetError",
 		},
 		{
 			name:       "update error",
@@ -133,8 +133,8 @@ func TestNamespaceReconciler_annotateIngress(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for i, tt := range tests {
+		t.Run(testcase.Name(i, tt.name), func(t *testing.T) {
 			client := fakeclient.NewClient(tt.clientOpts, tt.ingress)
 			r := &NamespaceReconciler{
 				Client: client,

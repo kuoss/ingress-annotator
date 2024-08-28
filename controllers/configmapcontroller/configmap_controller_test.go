@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -70,24 +72,36 @@ func TestConfigMapReconciler_Reconcile(t *testing.T) {
 		wantError  string
 	}{
 		{
-			name:       "Error on ConfigMap Get should return appropriate error and requeue",
-			clientOpts: &fakeclient.ClientOpts{GetError: true}, // Simulate a Get error on Get
+			name:       "Requeue on ConfigMap Get error",
+			clientOpts: &fakeclient.ClientOpts{GetError: true},
 			cm:         createConfigMap("default", "ingress-annotator", ""),
+			newCM:      createConfigMap("default", "ingress-annotator", "rule1:\n  key1: value1"),
 			nn:         types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
 			requestNN:  types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
+			want:       ctrl.Result{RequeueAfter: 30 * time.Second},
 			wantError:  "failed to get ConfigMap: mocked GetError",
-			want:       ctrl.Result{RequeueAfter: 30 * time.Second},
 		},
 		{
-			name:       "ConfigMap not found should requeue after 30 seconds",
-			clientOpts: &fakeclient.ClientOpts{GetNotFoundError: true}, // Simulate a NotFound error on Get
+			name:       "Requeue when ConfigMap not found",
+			clientOpts: &fakeclient.ClientOpts{GetNotFoundError: true},
 			cm:         createConfigMap("default", "ingress-annotator", ""),
+			newCM:      createConfigMap("default", "ingress-annotator", "rule1:\n  key1: value1"),
 			nn:         types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
 			requestNN:  types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
 			want:       ctrl.Result{RequeueAfter: 30 * time.Second},
 		},
 		{
-			name:      "Invalid ConfigMap data should return unmarshalling error",
+			name:       "Error during Ingress list should result in requeue",
+			clientOpts: &fakeclient.ClientOpts{ListError: true},
+			cm:         createConfigMap("default", "ingress-annotator", ""),
+			newCM:      createConfigMap("default", "ingress-annotator", "rule1:\n  key1: value1"),
+			nn:         types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
+			requestNN:  types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
+			want:       ctrl.Result{},
+			wantError:  "failed to annotateAllIngresses: failed to list ingresses: mocked ListError",
+		},
+		{
+			name:      "Unmarshal error on invalid ConfigMap data",
 			cm:        createConfigMap("default", "ingress-annotator", "rule1:\n  key1: value1"),
 			newCM:     createConfigMap("default", "ingress-annotator", "invalid rules"),
 			nn:        types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
@@ -96,7 +110,7 @@ func TestConfigMapReconciler_Reconcile(t *testing.T) {
 			wantError: "failed to update rules in rules store: failed to extract rules from configMap: failed to unmarshal rules: yaml: unmarshal errors:\n  line 1: cannot unmarshal !!str `invalid...` into model.Rules",
 		},
 		{
-			name:      "Valid ConfigMap but no change should not requeue or return an error",
+			name:      "No requeue when ConfigMap has no changes",
 			cm:        createConfigMap("default", "ingress-annotator", "rule1:\n  key1: value1"),
 			newCM:     createConfigMap("default", "ingress-annotator", "rule1:\n  key1: value1"),
 			nn:        types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
@@ -104,14 +118,14 @@ func TestConfigMapReconciler_Reconcile(t *testing.T) {
 			want:      ctrl.Result{},
 		},
 		{
-			name:      "Valid ConfigMap should process without errors or requeue",
+			name:      "Process valid ConfigMap without errors or requeue",
 			cm:        createConfigMap("default", "ingress-annotator", "rule1:\n  key1: value1"),
 			nn:        types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
 			requestNN: types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
 			want:      ctrl.Result{},
 		},
 		{
-			name:      "Valid ConfigMap but different request name should not return errors",
+			name:      "No errors when request name differs from ConfigMap name",
 			cm:        createConfigMap("default", "ingress-annotator", "rule1:\n  key1: value1"),
 			nn:        types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
 			requestNN: types.NamespacedName{Namespace: "default", Name: "xxx"},
@@ -144,8 +158,48 @@ func TestConfigMapReconciler_Reconcile(t *testing.T) {
 			} else {
 				assert.EqualError(t, err, tc.wantError)
 			}
-
 			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestConfigMapReconciler_annotateAllIngresses(t *testing.T) {
+	ingress1 := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: "ingress1", Namespace: "default"}}
+	ingress2 := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: "ingress2", Namespace: "default"}}
+
+	testCases := []struct {
+		clientOpts *fakeclient.ClientOpts
+		wantError  string
+	}{
+		{
+			clientOpts: nil,
+			wantError:  "",
+		},
+		{
+			clientOpts: &fakeclient.ClientOpts{GetError: true},
+			wantError:  "failed to annotateIngress: failed to get ingress default/ingress1: mocked GetError",
+		},
+		{
+			clientOpts: &fakeclient.ClientOpts{UpdateError: true},
+			wantError:  "failed to annotateIngress: failed to update ingress default/ingress1: mocked UpdateError",
+		},
+		{
+			clientOpts: &fakeclient.ClientOpts{UpdateConflictError: true},
+			wantError:  "failed to annotateIngress: mocked UpdateConflictError: Operation cannot be fulfilled on ingresses.networking.k8s.io \"ingress1\": the object has been modified; please apply your changes to the latest version and try again",
+		},
+	}
+	for i, tc := range testCases {
+		t.Run(testcase.Name(i), func(t *testing.T) {
+			client := fakeclient.NewClient(tc.clientOpts, ingress1, ingress2)
+			reconciler := &ConfigMapReconciler{
+				Client: client,
+			}
+			err := reconciler.annotateAllIngresses(context.TODO())
+			if tc.wantError == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.EqualError(t, err, tc.wantError)
+			}
 		})
 	}
 }
