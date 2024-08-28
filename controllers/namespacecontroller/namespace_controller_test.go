@@ -54,7 +54,7 @@ func TestNamespaceReconciler_Reconcile(t *testing.T) {
 		},
 		{
 			namespace:  &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-namespace"}},
-			clientOpts: &fakeclient.ClientOpts{GetError: true},
+			clientOpts: &fakeclient.ClientOpts{GetError: "*"},
 			wantResult: ctrl.Result{},
 			wantError:  "mocked GetError",
 		},
@@ -116,7 +116,7 @@ func TestNamespaceReconciler_annotateIngress(t *testing.T) {
 		{
 			name:       "get error",
 			ingress:    &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: "test-ingress", Namespace: "test-namespace"}},
-			clientOpts: &fakeclient.ClientOpts{GetError: true},
+			clientOpts: &fakeclient.ClientOpts{GetError: "*"},
 			wantError:  "failed to get ingress test-namespace/test-ingress: mocked GetError",
 		},
 		{

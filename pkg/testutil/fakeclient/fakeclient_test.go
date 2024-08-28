@@ -4,10 +4,13 @@ import (
 	"context"
 	"testing"
 
+	"github.com/jmnote/tester/testcase"
 	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func TestNewClient_NilOpts(t *testing.T) {
@@ -27,12 +30,52 @@ func TestNewClient_NilOpts(t *testing.T) {
 }
 
 func TestNewClient_GetError(t *testing.T) {
-	wantError := "mocked GetError"
-	opts := &ClientOpts{GetError: true}
-	cl := NewClient(opts)
-	pod := &networkingv1.Ingress{}
-	err := cl.Get(context.TODO(), types.NamespacedName{Name: "test-ingress", Namespace: "default"}, pod)
-	assert.EqualError(t, err, wantError)
+	testCases := []struct {
+		obj       client.Object
+		getError  string
+		wantError string
+	}{
+		{
+			obj:       &networkingv1.Ingress{},
+			getError:  "*",
+			wantError: "mocked GetError",
+		},
+		{
+			obj:       &corev1.ConfigMap{},
+			getError:  "ConfigMap",
+			wantError: "mocked GetError ConfigMap",
+		},
+		{
+			obj:       &corev1.Namespace{},
+			getError:  "Namespace",
+			wantError: "mocked GetError Namespace",
+		},
+		{
+			obj:       &networkingv1.Ingress{},
+			getError:  "Ingress",
+			wantError: "mocked GetError Ingress",
+		},
+		{
+			obj:      &networkingv1.Ingress{},
+			getError: "Namespace",
+		},
+		{
+			obj:      &corev1.Node{},
+			getError: "X",
+		},
+	}
+	for i, tc := range testCases {
+		t.Run(testcase.Name(i, tc.getError), func(t *testing.T) {
+			opts := &ClientOpts{GetError: tc.getError}
+			cl := NewClient(opts)
+			err := cl.Get(context.TODO(), types.NamespacedName{}, tc.obj)
+			if tc.wantError == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.EqualError(t, err, tc.wantError)
+			}
+		})
+	}
 }
 
 func TestNewClient_GetNotFoundError(t *testing.T) {

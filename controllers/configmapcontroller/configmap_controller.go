@@ -110,7 +110,10 @@ func (r *ConfigMapReconciler) annotateIngress(ctx context.Context, ing networkin
 		if err := r.Get(ctx, client.ObjectKey{Name: ing.Name, Namespace: ing.Namespace}, &ing); err != nil {
 			return fmt.Errorf("failed to get ingress %s/%s: %w", ing.Namespace, ing.Name, err)
 		}
-		ing.SetAnnotations(map[string]string{model.ReconcileKey: "true"})
+		if ing.Annotations == nil {
+			ing.Annotations = make(map[string]string)
+		}
+		ing.Annotations[model.ReconcileKey] = "true"
 		if err := r.Update(ctx, &ing); err != nil {
 			if apierrors.IsConflict(err) {
 				return err
