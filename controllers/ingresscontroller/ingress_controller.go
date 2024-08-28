@@ -146,7 +146,7 @@ func (r *IngressReconciler) addNewAnnotations(scope *ingressScope) {
 	}
 
 	b := util.MustMarshalJSON(newAnnotations)
-	scope.updatedAnnotations[model.ManagedAnnotationsKey] = string(b)
+	scope.updatedAnnotations[model.ManagedAnnotationsKey] = string(b) + "\n"
 }
 
 func (r *IngressReconciler) getNewAnnotations(scope *ingressScope) model.Annotations {

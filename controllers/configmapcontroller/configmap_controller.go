@@ -22,11 +22,14 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	networkingv1 "k8s.io/api/networking/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/kuoss/ingress-annotator/pkg/model"
 	"github.com/kuoss/ingress-annotator/pkg/rulesstore"
 )
 
@@ -60,7 +63,7 @@ func (r *ConfigMapReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// Fetch the ConfigMap resource
 	var cm corev1.ConfigMap
 	if err := r.Get(ctx, r.NN, &cm); err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			logger.Error(err, "ConfigMap %s not found, will retry after delay", r.NN)
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
@@ -78,6 +81,42 @@ func (r *ConfigMapReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	newRules := r.RulesStore.GetRules()
 	logger.Info("Rules updated", "newRules", newRules)
 
+	if err := r.annotateAllIngresses(ctx); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to annotateAllIngresses: %w", err)
+	}
+
 	logger.Info("Successfully reconciled ConfigMap")
 	return ctrl.Result{}, nil
+}
+
+func (r *ConfigMapReconciler) annotateAllIngresses(ctx context.Context) error {
+	var ingressList networkingv1.IngressList
+
+	if err := r.List(ctx, &ingressList); err != nil {
+		return fmt.Errorf("failed to list ingresses: %w", err)
+	}
+
+	for _, ing := range ingressList.Items {
+		if err := r.annotateIngress(ctx, ing); err != nil {
+			return fmt.Errorf("failed to annotateIngress: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (r *ConfigMapReconciler) annotateIngress(ctx context.Context, ing networkingv1.Ingress) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		if err := r.Get(ctx, client.ObjectKey{Name: ing.Name, Namespace: ing.Namespace}, &ing); err != nil {
+			return fmt.Errorf("failed to get ingress %s/%s: %w", ing.Namespace, ing.Name, err)
+		}
+		ing.SetAnnotations(map[string]string{model.ReconcileKey: "true"})
+		if err := r.Update(ctx, &ing); err != nil {
+			if apierrors.IsConflict(err) {
+				return err
+			}
+			return fmt.Errorf("failed to update ingress %s/%s: %w", ing.Namespace, ing.Name, err)
+		}
+		return nil
+	})
 }

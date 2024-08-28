@@ -65,7 +65,7 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	logger.Info("Reconciling Namespace")
 
 	if err := r.annotateIngressesInNamespace(ctx, req.Namespace); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to annotate ingresses: %w", err)
+		return ctrl.Result{}, fmt.Errorf("failed to annotateIngressesInNamespace: %w", err)
 	}
 
 	logger.Info("Reconciled Namespace successfully")
@@ -81,7 +81,7 @@ func (r *NamespaceReconciler) annotateIngressesInNamespace(ctx context.Context, 
 
 	for _, ing := range ingressList.Items {
 		if err := r.annotateIngress(ctx, ing); err != nil {
-			return fmt.Errorf("failed to annotate ingress: %w", err)
+			return fmt.Errorf("failed to annotateIngress: %w", err)
 		}
 	}
 
@@ -91,7 +91,7 @@ func (r *NamespaceReconciler) annotateIngressesInNamespace(ctx context.Context, 
 func (r *NamespaceReconciler) annotateIngress(ctx context.Context, ing networkingv1.Ingress) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		if err := r.Get(ctx, client.ObjectKey{Name: ing.Name, Namespace: ing.Namespace}, &ing); err != nil {
-			return fmt.Errorf("failed to get latest ingress %s/%s: %w", ing.Namespace, ing.Name, err)
+			return fmt.Errorf("failed to get ingress %s/%s: %w", ing.Namespace, ing.Name, err)
 		}
 		ing.SetAnnotations(map[string]string{model.ReconcileKey: "true"})
 		if err := r.Update(ctx, &ing); err != nil {

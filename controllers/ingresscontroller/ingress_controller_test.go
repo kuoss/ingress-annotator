@@ -92,7 +92,7 @@ func TestIngressReconciler_Reconcile(t *testing.T) {
 			},
 			wantResult: ctrl.Result{},
 			wantAnnotations: map[string]string{
-				"annotator.ingress.kubernetes.io/managed-annotations": `{"new-key":"new-value"}`,
+				"annotator.ingress.kubernetes.io/managed-annotations": "{\"new-key\":\"new-value\"}\n",
 				"annotator.ingress.kubernetes.io/rules":               "rule1",
 				"new-key":                                             "new-value",
 			},
@@ -105,7 +105,7 @@ func TestIngressReconciler_Reconcile(t *testing.T) {
 			},
 			wantResult: ctrl.Result{},
 			wantAnnotations: map[string]string{
-				"annotator.ingress.kubernetes.io/managed-annotations": `{"new-key":"new-value"}`,
+				"annotator.ingress.kubernetes.io/managed-annotations": "{\"new-key\":\"new-value\"}\n",
 				"annotator.ingress.kubernetes.io/rules":               "rule1",
 				"new-key":                                             "new-value",
 			},
@@ -114,13 +114,13 @@ func TestIngressReconciler_Reconcile(t *testing.T) {
 			name:      "ValidIngressWithPreExistingAnnotations_ShouldRetainExistingAnnotations",
 			namespace: &corev1.Namespace{ObjectMeta: ctrl.ObjectMeta{Name: "default"}},
 			ingressAnnotations: map[string]string{
-				"annotator.ingress.kubernetes.io/managed-annotations": `{"new-key":"new-value"}`,
+				"annotator.ingress.kubernetes.io/managed-annotations": "{\"new-key\":\"new-value\"}\n",
 				"annotator.ingress.kubernetes.io/rules":               "rule1",
 				"new-key":                                             "new-value",
 			},
 			wantResult: ctrl.Result{},
 			wantAnnotations: map[string]string{
-				"annotator.ingress.kubernetes.io/managed-annotations": `{"new-key":"new-value"}`,
+				"annotator.ingress.kubernetes.io/managed-annotations": "{\"new-key\":\"new-value\"}\n",
 				"annotator.ingress.kubernetes.io/rules":               "rule1",
 				"new-key":                                             "new-value",
 			},
@@ -140,13 +140,13 @@ func TestIngressReconciler_Reconcile(t *testing.T) {
 			name:      "NoChangesDetected_ShouldReturnEarlyWithoutUpdates",
 			namespace: &corev1.Namespace{ObjectMeta: ctrl.ObjectMeta{Name: "default"}},
 			ingressAnnotations: map[string]string{
-				"annotator.ingress.kubernetes.io/managed-annotations": `{"new-key":"new-value"}`,
+				"annotator.ingress.kubernetes.io/managed-annotations": "{\"new-key\":\"new-value\"}\n",
 				"annotator.ingress.kubernetes.io/rules":               "rule1",
 				"new-key":                                             "old-value",
 			},
 			wantResult: ctrl.Result{},
 			wantAnnotations: map[string]string{
-				"annotator.ingress.kubernetes.io/managed-annotations": `{"new-key":"new-value"}`,
+				"annotator.ingress.kubernetes.io/managed-annotations": "{\"new-key\":\"new-value\"}\n",
 				"annotator.ingress.kubernetes.io/rules":               "rule1",
 				"new-key":                                             "new-value",
 			},
@@ -173,7 +173,7 @@ func TestIngressReconciler_Reconcile(t *testing.T) {
 			clientOpts: &fakeclient.ClientOpts{UpdateError: true},
 			namespace:  &corev1.Namespace{ObjectMeta: ctrl.ObjectMeta{Name: "default"}},
 			ingressAnnotations: map[string]string{
-				"annotator.ingress.kubernetes.io/managed-annotations": `{"new-key":"new-value"}`,
+				"annotator.ingress.kubernetes.io/managed-annotations": "{\"new-key\":\"new-value\"}\n",
 				"annotator.ingress.kubernetes.io/rules":               "rule1",
 			},
 			wantResult: ctrl.Result{RequeueAfter: 30 * time.Second},
