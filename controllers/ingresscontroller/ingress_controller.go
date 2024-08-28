@@ -58,7 +58,7 @@ func (r *IngressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := ctrl.LoggerFrom(ctx).WithValues("ingress", req.NamespacedName)
+	logger := ctrl.LoggerFrom(ctx)
 
 	// Fetch Ingress resource
 	var ingress networkingv1.Ingress
@@ -66,7 +66,21 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		if apierrors.IsNotFound(err) {
 			return ctrl.Result{}, nil
 		}
-		return ctrl.Result{RequeueAfter: 30 * time.Second}, err
+		return ctrl.Result{}, err
+	}
+
+	// Handle deleted ingresses
+	if !ingress.DeletionTimestamp.IsZero() {
+		return ctrl.Result{}, nil
+	}
+
+	// ensure remove annotation key 'reconcile'
+	if _, exists := ingress.Annotations[model.ReconcileKey]; exists {
+		delete(ingress.Annotations, model.ReconcileKey)
+		if err := r.Update(ctx, &ingress); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{Requeue: true}, nil
 	}
 
 	// Fetch Namespace resource
@@ -132,7 +146,6 @@ func (r *IngressReconciler) removeManagedAnnotations(scope *ingressScope) {
 			delete(scope.updatedAnnotations, key)
 		}
 	}
-	delete(scope.updatedAnnotations, model.ReconcileKey)
 	delete(scope.updatedAnnotations, model.ManagedAnnotationsKey)
 }
 

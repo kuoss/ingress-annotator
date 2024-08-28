@@ -42,9 +42,10 @@ func TestIngressReconciler_Reconcile(t *testing.T) {
 	testCases := []struct {
 		name               string
 		clientOpts         *fakeclient.ClientOpts
-		namespace          *corev1.Namespace
 		requestNN          *types.NamespacedName
 		ingressAnnotations map[string]string
+		deletionTimestamp  *metav1.Time
+		finalizers         []string
 		wantResult         ctrl.Result
 		wantAnnotations    map[string]string
 		wantError          string
@@ -56,14 +57,50 @@ func TestIngressReconciler_Reconcile(t *testing.T) {
 			wantResult: ctrl.Result{},
 		},
 		{
+			name:              "IngressWithDeletionTimestampAndFinalizer_ShouldHandleDeletion",
+			deletionTimestamp: &metav1.Time{Time: time.Now()},
+			finalizers:        []string{"test-finalizer"},
+			requestNN:         &types.NamespacedName{Namespace: "default", Name: "my-ingress"},
+			wantResult:        ctrl.Result{},
+		},
+		{
 			name:         "IngressDoesNotExist_ShouldReturnNotFoundError",
 			requestNN:    &types.NamespacedName{Namespace: "default", Name: "xxx"},
 			wantResult:   ctrl.Result{},
 			wantGetError: `ingresses.networking.k8s.io "xxx" not found`,
 		},
 		{
-			name:      "IngressWithAnnotations_ShouldNotRemoveExistingAnnotations",
-			namespace: &corev1.Namespace{ObjectMeta: ctrl.ObjectMeta{Name: "default"}},
+			name: "ReconcileAnnotationTrue_ShouldRequeue",
+			ingressAnnotations: map[string]string{
+				"annotator.ingress.kubernetes.io/reconcile": "true",
+			},
+			wantResult: ctrl.Result{Requeue: true},
+		},
+		{
+			name:       "ReconcileAnnotationTrueWithUpdateError_ShouldReturnError",
+			clientOpts: &fakeclient.ClientOpts{UpdateError: true},
+			ingressAnnotations: map[string]string{
+				"annotator.ingress.kubernetes.io/reconcile": "true",
+			},
+			wantResult: ctrl.Result{},
+			wantAnnotations: map[string]string{
+				"annotator.ingress.kubernetes.io/reconcile": "true",
+			},
+			wantError: "mocked UpdateError",
+		},
+		{
+			name: "ReconcileAnnotationTrueWithExtraAnnotations_ShouldRequeueAndRetainAnnotations",
+			ingressAnnotations: map[string]string{
+				"annotator.ingress.kubernetes.io/reconcile": "true",
+				"example-key": "example-value",
+			},
+			wantResult: ctrl.Result{Requeue: true},
+			wantAnnotations: map[string]string{
+				"example-key": "example-value",
+			},
+		},
+		{
+			name: "ValidIngressWithExampleAnnotation_ShouldRetainAnnotation",
 			ingressAnnotations: map[string]string{
 				"example-key": "example-value",
 			},
@@ -73,8 +110,7 @@ func TestIngressReconciler_Reconcile(t *testing.T) {
 			},
 		},
 		{
-			name:      "InvalidManagedAnnotationsWithNamespace_ShouldResetInvalidAnnotations",
-			namespace: &corev1.Namespace{ObjectMeta: ctrl.ObjectMeta{Name: "default"}},
+			name: "InvalidManagedAnnotationsWithNamespace_ShouldResetInvalidAnnotations",
 			ingressAnnotations: map[string]string{
 				"annotator.ingress.kubernetes.io/managed-annotations": "invalid-json",
 				"example-key": "example-value",
@@ -85,8 +121,7 @@ func TestIngressReconciler_Reconcile(t *testing.T) {
 			},
 		},
 		{
-			name:      "ValidIngressWithoutMatchingRule_ShouldAddNewAnnotations",
-			namespace: &corev1.Namespace{ObjectMeta: ctrl.ObjectMeta{Name: "default"}},
+			name: "ValidIngressWithoutMatchingRule_ShouldAddNewAnnotations",
 			ingressAnnotations: map[string]string{
 				"annotator.ingress.kubernetes.io/rules": "rule1",
 			},
@@ -98,8 +133,7 @@ func TestIngressReconciler_Reconcile(t *testing.T) {
 			},
 		},
 		{
-			name:      "ValidIngressWithMatchingRule_ShouldAddNewAnnotations",
-			namespace: &corev1.Namespace{ObjectMeta: ctrl.ObjectMeta{Name: "default"}},
+			name: "ValidIngressWithMatchingRule_ShouldAddNewAnnotations",
 			ingressAnnotations: map[string]string{
 				"annotator.ingress.kubernetes.io/rules": "rule1",
 			},
@@ -111,8 +145,7 @@ func TestIngressReconciler_Reconcile(t *testing.T) {
 			},
 		},
 		{
-			name:      "ValidIngressWithPreExistingAnnotations_ShouldRetainExistingAnnotations",
-			namespace: &corev1.Namespace{ObjectMeta: ctrl.ObjectMeta{Name: "default"}},
+			name: "ValidIngressWithPreExistingAnnotations_ShouldRetainExistingAnnotations",
 			ingressAnnotations: map[string]string{
 				"annotator.ingress.kubernetes.io/managed-annotations": "{\"new-key\":\"new-value\"}\n",
 				"annotator.ingress.kubernetes.io/rules":               "rule1",
@@ -126,8 +159,7 @@ func TestIngressReconciler_Reconcile(t *testing.T) {
 			},
 		},
 		{
-			name:      "ValidIngressWithUnmatchingRule_ShouldRetainExistingAnnotations",
-			namespace: &corev1.Namespace{ObjectMeta: ctrl.ObjectMeta{Name: "default"}},
+			name: "ValidIngressWithUnmatchingRule_ShouldRetainExistingAnnotations",
 			ingressAnnotations: map[string]string{
 				"annotator.ingress.kubernetes.io/rules": "xxx",
 			},
@@ -137,8 +169,7 @@ func TestIngressReconciler_Reconcile(t *testing.T) {
 			},
 		},
 		{
-			name:      "NoChangesDetected_ShouldReturnEarlyWithoutUpdates",
-			namespace: &corev1.Namespace{ObjectMeta: ctrl.ObjectMeta{Name: "default"}},
+			name: "NoChangesDetected_ShouldReturnEarlyWithoutUpdates",
 			ingressAnnotations: map[string]string{
 				"annotator.ingress.kubernetes.io/managed-annotations": "{\"new-key\":\"new-value\"}\n",
 				"annotator.ingress.kubernetes.io/rules":               "rule1",
@@ -153,25 +184,31 @@ func TestIngressReconciler_Reconcile(t *testing.T) {
 		},
 		{
 			name:       "ClientGetError_ShouldReturnError",
-			clientOpts: &fakeclient.ClientOpts{GetError: true},
-			namespace:  &corev1.Namespace{ObjectMeta: ctrl.ObjectMeta{Name: "default"}},
+			clientOpts: &fakeclient.ClientOpts{GetError: "*"},
 			ingressAnnotations: map[string]string{
 				"example-key": "example-value",
 			},
-			wantResult: ctrl.Result{RequeueAfter: 30 * time.Second},
+			wantResult: ctrl.Result{},
 			wantError:  "mocked GetError",
+		},
+		{
+			name:       "ClientGetErrorWithNamespace_ShouldReturnNamespaceError",
+			clientOpts: &fakeclient.ClientOpts{GetError: "Namespace"},
+			ingressAnnotations: map[string]string{
+				"example-key": "example-value",
+			},
+			wantResult: ctrl.Result{},
+			wantError:  "mocked GetError Namespace",
 		},
 		{
 			name:         "RulesProvidedButIngressNotFound_ShouldReturnNotFoundError",
 			clientOpts:   &fakeclient.ClientOpts{GetNotFoundError: true},
-			namespace:    &corev1.Namespace{ObjectMeta: ctrl.ObjectMeta{Name: "default"}},
 			wantResult:   ctrl.Result{},
 			wantGetError: "mocked GetNotFoundError: Resource \"my-ingress\" not found",
 		},
 		{
 			name:       "ClientUpdateError_ShouldRequeueAfterError",
 			clientOpts: &fakeclient.ClientOpts{UpdateError: true},
-			namespace:  &corev1.Namespace{ObjectMeta: ctrl.ObjectMeta{Name: "default"}},
 			ingressAnnotations: map[string]string{
 				"annotator.ingress.kubernetes.io/managed-annotations": "{\"new-key\":\"new-value\"}\n",
 				"annotator.ingress.kubernetes.io/rules":               "rule1",
@@ -189,14 +226,17 @@ func TestIngressReconciler_Reconcile(t *testing.T) {
 				nn = *tc.requestNN
 			}
 
+			namespace := &corev1.Namespace{ObjectMeta: ctrl.ObjectMeta{Name: "default"}}
 			ingress := &networkingv1.Ingress{
 				ObjectMeta: ctrl.ObjectMeta{
-					Namespace:   "default",
-					Name:        "my-ingress",
-					Annotations: tc.ingressAnnotations,
+					Namespace:         "default",
+					Name:              "my-ingress",
+					Annotations:       tc.ingressAnnotations,
+					DeletionTimestamp: tc.deletionTimestamp,
+					Finalizers:        tc.finalizers,
 				},
 			}
-			client := fakeclient.NewClient(tc.clientOpts, tc.namespace, ingress)
+			client := fakeclient.NewClient(tc.clientOpts, namespace, ingress)
 
 			// Mock the rules store
 			rules := &model.Rules{"rule1": {"new-key": "new-value"}}
@@ -283,8 +323,8 @@ func TestCopyAnnotations(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for i, tt := range tests {
+		t.Run(testcase.Name(i, tt.name), func(t *testing.T) {
 			copy := copyAnnotations(tt.input)
 			assert.Equal(t, tt.expectedOutput, copy)
 

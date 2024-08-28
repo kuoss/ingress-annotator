@@ -33,7 +33,7 @@ func NewManager() manager.Manager {
 }
 
 type ClientOpts struct {
-	GetError            bool
+	GetError            string
 	GetNotFoundError    bool
 	ListError           bool
 	UpdateError         bool
@@ -51,6 +51,28 @@ func NewClient(opts *ClientOpts, objs ...client.Object) client.Client {
 		Build()
 }
 
+func getObjectKind(obj client.Object) string {
+	switch obj.(type) {
+	case *corev1.ConfigMap:
+		return "ConfigMap"
+	case *corev1.Namespace:
+		return "Namespace"
+	case *networkingv1.Ingress:
+		return "Ingress"
+	default:
+		return "Unknown"
+	}
+}
+func newErrorForKind(obj client.Object, wantKind, errorMessage string) error {
+	if wantKind == "*" {
+		return errors.New(errorMessage)
+	}
+	if getObjectKind(obj) == wantKind {
+		return fmt.Errorf("%s %s", errorMessage, wantKind)
+	}
+	return nil
+}
+
 func createInterceptorFuncs(opts *ClientOpts) interceptor.Funcs {
 	if opts == nil {
 		opts = &ClientOpts{}
@@ -58,15 +80,15 @@ func createInterceptorFuncs(opts *ClientOpts) interceptor.Funcs {
 
 	funcs := interceptor.Funcs{}
 
-	if opts.GetError {
+	if opts.GetError != "" {
 		funcs.Get = func(
 			ctx context.Context,
 			client client.WithWatch,
 			key types.NamespacedName,
 			obj client.Object,
-			opts ...client.GetOption,
+			_ ...client.GetOption,
 		) error {
-			return errors.New("mocked GetError")
+			return newErrorForKind(obj, opts.GetError, "mocked GetError")
 		}
 	}
 

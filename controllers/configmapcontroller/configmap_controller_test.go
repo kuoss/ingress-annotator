@@ -73,7 +73,7 @@ func TestConfigMapReconciler_Reconcile(t *testing.T) {
 	}{
 		{
 			name:       "Requeue on ConfigMap Get error",
-			clientOpts: &fakeclient.ClientOpts{GetError: true},
+			clientOpts: &fakeclient.ClientOpts{GetError: "*"},
 			cm:         createConfigMap("default", "ingress-annotator", ""),
 			newCM:      createConfigMap("default", "ingress-annotator", "rule1:\n  key1: value1"),
 			nn:         types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
@@ -176,7 +176,7 @@ func TestConfigMapReconciler_annotateAllIngresses(t *testing.T) {
 			wantError:  "",
 		},
 		{
-			clientOpts: &fakeclient.ClientOpts{GetError: true},
+			clientOpts: &fakeclient.ClientOpts{GetError: "*"},
 			wantError:  "failed to annotateIngress: failed to get ingress default/ingress1: mocked GetError",
 		},
 		{
