@@ -7,7 +7,7 @@ import (
 	"github.com/jmnote/tester/testcase"
 	"github.com/kuoss/ingress-annotator/pkg/model"
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 )
 
