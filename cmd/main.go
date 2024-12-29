@@ -40,7 +40,7 @@ import (
 
 	"github.com/kuoss/ingress-annotator/controllers/configmapcontroller"
 	"github.com/kuoss/ingress-annotator/controllers/ingresscontroller"
-	"github.com/kuoss/ingress-annotator/controllers/namespacecontroller"
+	"github.com/kuoss/ingress-annotator/pkg/matcher"
 	"github.com/kuoss/ingress-annotator/pkg/rulesstore"
 	// +kubebuilder:scaffold:imports
 )
@@ -153,21 +153,13 @@ func run(mgr ctrl.Manager, ctx context.Context) error {
 		return fmt.Errorf("unable to create ConfigMapReconciler: %w", err) // test unreachable
 	}
 
-	ingressReconciler := &ingresscontroller.IngressReconciler{
-		Client:     mgr.GetClient(),
-		RulesStore: rulesStore,
-	}
-
-	if err = ingressReconciler.SetupWithManager(mgr); err != nil {
+	if err = (&ingresscontroller.IngressReconciler{
+		Client:  mgr.GetClient(),
+		Matcher: matcher.New(rulesStore),
+	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("unable to create IngressReconciler: %w", err) // test unreachable
 	}
 
-	if err = (&namespacecontroller.NamespaceReconciler{
-		Client:            mgr.GetClient(),
-		IngressReconciler: ingressReconciler,
-	}).SetupWithManager(mgr); err != nil {
-		return fmt.Errorf("unable to create NamespaceReconciler: %w", err) // test unreachable
-	}
 	// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

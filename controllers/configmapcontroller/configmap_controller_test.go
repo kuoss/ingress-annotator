@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/kuoss/ingress-annotator/pkg/rulesstore"
 	"github.com/kuoss/ingress-annotator/pkg/testutil/fakeclient"
@@ -75,7 +76,7 @@ func TestConfigMapReconciler_Reconcile(t *testing.T) {
 			name:       "Requeue on ConfigMap Get error",
 			clientOpts: &fakeclient.ClientOpts{GetError: "*"},
 			cm:         createConfigMap("default", "ingress-annotator", ""),
-			newCM:      createConfigMap("default", "ingress-annotator", "rule1:\n  key1: value1"),
+			newCM:      createConfigMap("default", "ingress-annotator", "- name: rule1\n  annotations:\n    key1: value1"),
 			nn:         types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
 			requestNN:  types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
 			want:       ctrl.Result{RequeueAfter: 30 * time.Second},
@@ -85,7 +86,7 @@ func TestConfigMapReconciler_Reconcile(t *testing.T) {
 			name:       "Requeue when ConfigMap not found",
 			clientOpts: &fakeclient.ClientOpts{GetNotFoundError: true},
 			cm:         createConfigMap("default", "ingress-annotator", ""),
-			newCM:      createConfigMap("default", "ingress-annotator", "rule1:\n  key1: value1"),
+			newCM:      createConfigMap("default", "ingress-annotator", "- name: rule1\n  annotations:\n    key1: value1"),
 			nn:         types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
 			requestNN:  types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
 			want:       ctrl.Result{RequeueAfter: 30 * time.Second},
@@ -94,39 +95,39 @@ func TestConfigMapReconciler_Reconcile(t *testing.T) {
 			name:       "Error during Ingress list should result in requeue",
 			clientOpts: &fakeclient.ClientOpts{ListError: true},
 			cm:         createConfigMap("default", "ingress-annotator", ""),
-			newCM:      createConfigMap("default", "ingress-annotator", "rule1:\n  key1: value1"),
+			newCM:      createConfigMap("default", "ingress-annotator", "- name: rule1\n  annotations:\n    key1: value1"),
 			nn:         types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
 			requestNN:  types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
-			want:       ctrl.Result{},
+			want:       reconcile.Result{},
 			wantError:  "failed to annotateAllIngresses: failed to list ingresses: mocked ListError",
 		},
 		{
 			name:      "Unmarshal error on invalid ConfigMap data",
-			cm:        createConfigMap("default", "ingress-annotator", "rule1:\n  key1: value1"),
+			cm:        createConfigMap("default", "ingress-annotator", "- name: rule1\n  annotations:\n    key1: value1"),
 			newCM:     createConfigMap("default", "ingress-annotator", "invalid rules"),
 			nn:        types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
 			requestNN: types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
 			want:      ctrl.Result{RequeueAfter: 30 * time.Second},
-			wantError: "failed to update rules in rules store: failed to extract rules from configMap: failed to unmarshal rules: yaml: unmarshal errors:\n  line 1: cannot unmarshal !!str `invalid...` into model.Rules",
+			wantError: "failed to update rules in rules store: failed to extract rules from configMap: failed to unmarshal rules: yaml: unmarshal errors:\n  line 1: cannot unmarshal !!str `invalid...` into []model.Rule",
 		},
 		{
 			name:      "No requeue when ConfigMap has no changes",
-			cm:        createConfigMap("default", "ingress-annotator", "rule1:\n  key1: value1"),
-			newCM:     createConfigMap("default", "ingress-annotator", "rule1:\n  key1: value1"),
+			cm:        createConfigMap("default", "ingress-annotator", "- name: rule1\n  annotations:\n    key1: value1"),
+			newCM:     createConfigMap("default", "ingress-annotator", "- name: rule1\n  annotations:\n    key1: value1"),
 			nn:        types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
 			requestNN: types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
 			want:      ctrl.Result{},
 		},
 		{
 			name:      "Process valid ConfigMap without errors or requeue",
-			cm:        createConfigMap("default", "ingress-annotator", "rule1:\n  key1: value1"),
+			cm:        createConfigMap("default", "ingress-annotator", "- name: rule1\n  annotations:\n    key1: value1"),
 			nn:        types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
 			requestNN: types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
 			want:      ctrl.Result{},
 		},
 		{
 			name:      "No errors when request name differs from ConfigMap name",
-			cm:        createConfigMap("default", "ingress-annotator", "rule1:\n  key1: value1"),
+			cm:        createConfigMap("default", "ingress-annotator", "- name: rule1\n  annotations:\n    key1: value1"),
 			nn:        types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
 			requestNN: types.NamespacedName{Namespace: "default", Name: "xxx"},
 			want:      ctrl.Result{},

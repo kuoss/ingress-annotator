@@ -15,7 +15,7 @@ import (
 	model "github.com/kuoss/ingress-annotator/pkg/model"
 	gomock "go.uber.org/mock/gomock"
 	v1 "k8s.io/api/core/v1"
-	client "sigs.k8s.io/controller-runtime/pkg/client"
+	v10 "k8s.io/api/networking/v1"
 )
 
 // MockIRulesStore is a mock of IRulesStore interface.
@@ -41,30 +41,25 @@ func (m *MockIRulesStore) EXPECT() *MockIRulesStoreMockRecorder {
 	return m.recorder
 }
 
-// ExtractRulesFromAnnotations mocks base method.
-func (m *MockIRulesStore) ExtractRulesFromAnnotations(objs ...client.Object) ([]string, error) {
+// GetAnnotationsForIngress mocks base method.
+func (m *MockIRulesStore) GetAnnotationsForIngress(ingress *v10.Ingress) model.Annotations {
 	m.ctrl.T.Helper()
-	varargs := []any{}
-	for _, a := range objs {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "ExtractRulesFromAnnotations", varargs...)
-	ret0, _ := ret[0].([]string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret := m.ctrl.Call(m, "GetAnnotationsForIngress", ingress)
+	ret0, _ := ret[0].(model.Annotations)
+	return ret0
 }
 
-// ExtractRulesFromAnnotations indicates an expected call of ExtractRulesFromAnnotations.
-func (mr *MockIRulesStoreMockRecorder) ExtractRulesFromAnnotations(objs ...any) *gomock.Call {
+// GetAnnotationsForIngress indicates an expected call of GetAnnotationsForIngress.
+func (mr *MockIRulesStoreMockRecorder) GetAnnotationsForIngress(ingress any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExtractRulesFromAnnotations", reflect.TypeOf((*MockIRulesStore)(nil).ExtractRulesFromAnnotations), objs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAnnotationsForIngress", reflect.TypeOf((*MockIRulesStore)(nil).GetAnnotationsForIngress), ingress)
 }
 
 // GetRules mocks base method.
-func (m *MockIRulesStore) GetRules() *model.Rules {
+func (m *MockIRulesStore) GetRules() []model.Rule {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetRules")
-	ret0, _ := ret[0].(*model.Rules)
+	ret0, _ := ret[0].([]model.Rule)
 	return ret0
 }
 
