@@ -11,7 +11,7 @@ The **Ingress Annotator** is a Kubernetes utility that automates the management 
 - **Centralized Annotation Management**: Define reusable annotation rules in a ConfigMap and apply them dynamically across multiple Ingress resources.
 - **Flexible Rule-Based Selection**: Target specific namespaces or Ingress resources using selectors for precise control.
 - **Automatic Updates**: Watches for ConfigMap changes and immediately applies updates to relevant Ingress resources.
-- **Conflict Prevention**: Managed annotations are stored under `ingress-annotator.kuoss.io/managed-annotations` to prevent conflicts with manually added annotations. If an annotation exists in both the ConfigMap and the Ingress resource, the ConfigMap value **overwrites** the existing annotation. However, manually added annotations that are not managed by `ingress-annotator` remain unchanged.
+- **Conflict Prevention**: Managed annotations are stored under `ingress-annotator.kubernetes.io/managed-annotations` to prevent conflicts with manually added annotations. If an annotation exists in both the ConfigMap and the Ingress resource, the ConfigMap value **overwrites** the existing annotation. However, manually added annotations that are not managed by `ingress-annotator` remain unchanged.
 
 
 ## Installation & Configuration
@@ -100,7 +100,7 @@ To install and configure Ingress Annotator, follow these steps:
      name: test-ingress
      namespace: ingress-annotator
      annotations:
-       ingress-annotator.kuoss.io/managed-annotations: >
+       ingress-annotator.kubernetes.io/managed-annotations: >
          {"hello":"world"}
        hello: world
    ```
