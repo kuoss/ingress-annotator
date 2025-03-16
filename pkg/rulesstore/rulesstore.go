@@ -70,7 +70,7 @@ func getRulesFromConfigMap(cm *corev1.ConfigMap) ([]model.Rule, error) {
 		return nil, fmt.Errorf("failed to unmarshal rules: %w", err)
 	}
 
-	var rules []model.Rule
+	rules := []model.Rule{}
 	for _, x := range xRules {
 		rule, err := x.ToRule()
 		if err != nil {
