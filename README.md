@@ -59,9 +59,10 @@ To install and configure Ingress Annotator, follow these steps:
    kubectl -n ingress-annotator get pods
    ```
 
-4. **Create an Ingress Resource for Testing **
+4. **Create an Ingress Resource for Testing**
 
-   ```yaml
+   ```sh
+   cat <<EOF | kubectl apply -f -
    apiVersion: networking.k8s.io/v1
    kind: Ingress
    metadata:
@@ -79,12 +80,7 @@ To install and configure Ingress Annotator, follow these steps:
                    name: test-service
                    port:
                      number: 80
-   ```
-
-   Apply the Ingress resource:
-
-   ```sh
-   kubectl apply -f test-ingress.yaml
+   EOF
    ```
 
 5. **Verify Annotations**
