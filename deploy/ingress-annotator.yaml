@@ -1,9 +1,4 @@
 apiVersion: v1
-kind: Namespace
-metadata:
-  name: ingress-annotator
----
-apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: ingress-annotator
@@ -117,9 +112,3 @@ spec:
         runAsNonRoot: true
       serviceAccountName: ingress-annotator
       terminationGracePeriodSeconds: 0
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ingress-annotator
-  namespace: ingress-annotator

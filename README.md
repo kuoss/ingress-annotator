@@ -13,107 +13,117 @@ The **Ingress Annotator** is a Kubernetes utility that automates the management 
 - **Automatic Updates**: Watches for ConfigMap changes and immediately applies updates to relevant Ingress resources.
 - **Conflict Prevention**: Managed annotations are stored under `ingress-annotator.kuoss.io/managed-annotations` to prevent conflicts with manually added annotations. If an annotation exists in both the ConfigMap and the Ingress resource, the ConfigMap value **overwrites** the existing annotation. However, manually added annotations that are not managed by `ingress-annotator` remain unchanged.
 
-## Installation
 
-  The deployment manifest `ingress-annotator.yaml` includes both the namespace and ConfigMap required for operation. To install Ingress Annotator, run:
+## Installation & Configuration
 
-To install Ingress Annotator, run:
+To install and configure Ingress Annotator, follow these steps:
 
-```sh
-kubectl create -f https://raw.githubusercontent.com/kuoss/ingress-annotator/main/deploy/ingress-annotator.yaml
-```
+1. **Create the Namespace**
 
-After installation, ensure the deployment is running:
+   ```sh
+   kubectl create namespace ingress-annotator
+   ```
 
-```sh
-kubectl -n ingress-annotator get pods
-```
+2. **Create a ConfigMap**
 
-## How to Configure
+   ```yaml
+   apiVersion: v1
+   kind: ConfigMap
+   metadata:
+     name: ingress-annotator
+     namespace: ingress-annotator
+   data:
+     rules: |
+       - description: test
+         selector:
+           include: ingress-annotator
+         annotations:
+           hello: world
+   ```
 
-1. Create a Test Namespace (Optional)
+   Apply the ConfigMap:
 
-If you don't have a test namespace with Ingress resources, create one:
+   ```sh
+   kubectl apply -f configmap.yaml
+   ```
 
-```sh
-kubectl create namespace test-namespace
-```
+3. **Deploy Ingress Annotator**
 
-Then, create a sample Ingress resource for testing:
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: test-ingress
-  namespace: test-namespace
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
-spec:
-  rules:
-    - host: example.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: test-service
-                port:
-                  number: 80
-```
+   ```sh
+   kubectl create -f https://raw.githubusercontent.com/kuoss/ingress-annotator/main/deploy/ingress-annotator.yaml
+   ```
 
-Apply the sample Ingress:
-```sh
-kubectl apply -f test-ingress.yaml
-```
+   Verify that the deployment is running:
 
-2. Edit the ConfigMap
+   ```sh
+   kubectl -n ingress-annotator get pods
+   ```
 
-Modify the annotation rules using:
-```sh
-kubectl -n ingress-annotator edit cm ingress-annotator
-```
+4. **Create an Ingress Resource for Testing **
 
-Example ConfigMap:
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ingress-annotator
-  namespace: ingress-annotator
-data:
-  rules: |
-    - description: allow-specific-ips
-      selector:
-        include: "test-namespace"
-      annotations:
-        nginx.ingress.kubernetes.io/whitelist-source-range: "68.204.79.0/27,68.204.135.80/28,246.91.35.0/24"
-```
+   ```yaml
+   apiVersion: networking.k8s.io/v1
+   kind: Ingress
+   metadata:
+     name: test-ingress
+     namespace: ingress-annotator
+   spec:
+     rules:
+       - host: example.com
+         http:
+           paths:
+             - path: /
+               pathType: Prefix
+               backend:
+                 service:
+                   name: test-service
+                   port:
+                     number: 80
+   ```
 
-2. Verify Annotations
-Check if the annotations have been applied:
-```sh
-kubectl get ingress test-ingress -n test-namespace -o yaml
-```
+   Apply the Ingress resource:
 
-Example Output:
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: ingress1
-  namespace: test-namespace
-  annotations:
-    ingress-annotator.kuoss.io/managed-annotations: >
-      {"nginx.ingress.kubernetes.io/whitelist-source-range":"68.204.79.0/27,68.204.135.80/28,246.91.35.0/24"}
-    nginx.ingress.kubernetes.io/whitelist-source-range: "68.204.79.0/27,68.204.135.80/28,246.91.35.0/24"
-    ...
-```
+   ```sh
+   kubectl apply -f test-ingress.yaml
+   ```
 
-If the annotation is missing, check the Ingress Annotator logs:
-```
-kubectl logs -n ingress-annotator deploy/ingress-annotator
-```
+5. **Verify Annotations**
+
+   Check if the annotations have been applied:
+
+   ```sh
+   kubectl get ingress test-ingress -n ingress-annotator -o yaml
+   ```
+
+   Example Output:
+
+   ```yaml
+   apiVersion: networking.k8s.io/v1
+   kind: Ingress
+   metadata:
+     name: test-ingress
+     namespace: ingress-annotator
+     annotations:
+       ingress-annotator.kuoss.io/managed-annotations: >
+         {"hello":"world"}
+       hello: world
+   ```
+
+   If the annotation is missing, check the Ingress Annotator logs:
+
+   ```sh
+   kubectl logs -n ingress-annotator deploy/ingress-annotator
+   ```
+
+6. **Modify and Apply ConfigMap**
+
+   After installation, you can modify the ConfigMap as needed to apply custom rules.
+
+   To edit the existing ConfigMap:
+
+   ```sh
+   kubectl edit configmap ingress-annotator -n ingress-annotator
+   ```
 
 ## Rule Examples
 
@@ -129,7 +139,8 @@ kubectl logs -n ingress-annotator deploy/ingress-annotator
 
 Alternatively, using a list format:
 
-  `listAnnotations` allows defining annotations in a structured list format, making it easier to manage multiple values and add descriptive comments.
+> [!NOTE]
+> `listAnnotations` allows defining annotations in a structured list format, making it easier to manage multiple values and add descriptive comments.
 
 ```yaml
 - description: allow-specific-ips
