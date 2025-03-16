@@ -5,6 +5,7 @@ go 1.22.5
 require (
 	github.com/go-logr/logr v1.4.1
 	github.com/jmnote/tester v0.1.2
+	github.com/kuoss/common v0.1.7
 	github.com/onsi/ginkgo/v2 v2.17.1
 	github.com/onsi/gomega v1.32.0
 	github.com/stretchr/testify v1.9.0

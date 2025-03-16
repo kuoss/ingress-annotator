@@ -12,12 +12,12 @@ import (
 )
 
 type IRulesStore interface {
-	GetRules() *model.Rules
+	GetRules() []model.Rule
 	UpdateRules(cm *corev1.ConfigMap) error
 }
 
 type RulesStore struct {
-	Rules      *model.Rules
+	Rules      []model.Rule
 	rulesMutex *sync.Mutex
 }
 
@@ -31,7 +31,7 @@ func New(cm *corev1.ConfigMap) (*RulesStore, error) {
 	return store, nil
 }
 
-func (s *RulesStore) GetRules() *model.Rules {
+func (s *RulesStore) GetRules() []model.Rule {
 	s.rulesMutex.Lock()
 	defer s.rulesMutex.Unlock()
 
@@ -48,14 +48,14 @@ func (s *RulesStore) UpdateRules(cm *corev1.ConfigMap) error {
 	return nil
 }
 
-func (s *RulesStore) updateRules(rules model.Rules) {
+func (s *RulesStore) updateRules(rules []model.Rule) {
 	s.rulesMutex.Lock()
 	defer s.rulesMutex.Unlock()
 
-	s.Rules = &rules
+	s.Rules = rules
 }
 
-func getRulesFromConfigMap(cm *corev1.ConfigMap) (model.Rules, error) {
+func getRulesFromConfigMap(cm *corev1.ConfigMap) ([]model.Rule, error) {
 	if cm == nil {
 		return nil, errors.New("configMap is nil")
 	}
@@ -65,7 +65,7 @@ func getRulesFromConfigMap(cm *corev1.ConfigMap) (model.Rules, error) {
 		return nil, errors.New("configMap missing 'rules' key")
 	}
 
-	var rules model.Rules
+	var rules []model.Rule
 	if err := yaml.Unmarshal([]byte(rulesText), &rules); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal rules: %w", err)
 	}

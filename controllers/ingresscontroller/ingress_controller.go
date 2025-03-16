@@ -19,7 +19,6 @@ package ingresscontroller
 import (
 	"context"
 	"encoding/json"
-	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -29,21 +28,20 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/kuoss/ingress-annotator/pkg/matcher"
 	"github.com/kuoss/ingress-annotator/pkg/model"
-	"github.com/kuoss/ingress-annotator/pkg/rulesstore"
 	"github.com/kuoss/ingress-annotator/pkg/util"
 )
 
 type ingressScope struct {
-	logger             logr.Logger
-	namespace          *corev1.Namespace
-	ingress            *networkingv1.Ingress
-	updatedAnnotations model.Annotations
+	logger    logr.Logger
+	namespace *corev1.Namespace
+	ingress   *networkingv1.Ingress
 }
 
 type IngressReconciler struct {
 	client.Client
-	RulesStore rulesstore.IRulesStore
+	*matcher.Matcher
 }
 
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;update;patch
@@ -74,15 +72,6 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
-	// ensure remove annotation key 'reconcile'
-	if _, exists := ingress.Annotations[model.ReconcileKey]; exists {
-		delete(ingress.Annotations, model.ReconcileKey)
-		if err := r.Update(ctx, &ingress); err != nil {
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{Requeue: true}, nil
-	}
-
 	// Fetch Namespace resource
 	var namespace corev1.Namespace
 	if err := r.Get(ctx, client.ObjectKey{Name: ingress.Namespace}, &namespace); err != nil {
@@ -91,10 +80,9 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Initialize ingressScope
 	scope := &ingressScope{
-		logger:             logger,
-		namespace:          &namespace,
-		ingress:            &ingress,
-		updatedAnnotations: copyAnnotations(ingress.Annotations), // Copy to avoid mutating original map
+		logger:    logger,
+		namespace: &namespace,
+		ingress:   &ingress,
 	}
 
 	// Reconcile Ingress
@@ -102,24 +90,58 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 }
 
 func (r *IngressReconciler) reconcileIngress(ctx context.Context, scope *ingressScope) (ctrl.Result, error) {
-	originalAnnotations := copyAnnotations(scope.updatedAnnotations)
-	r.removeManagedAnnotations(scope)
-	r.addNewAnnotations(scope)
+	ingress := scope.ingress
+	logger := scope.logger
 
-	// Early exit if there are no changes to annotations.
-	if annotationsEqual(originalAnnotations, scope.updatedAnnotations) {
+	toBeAnnotations := r.GetToBeAnnotations(ctx, scope)
+
+	// Early exit silently if there are no changes to annotations.
+	if annotationsEqual(toBeAnnotations, ingress.Annotations) {
 		return ctrl.Result{}, nil
 	}
 
-	// Update the Ingress resource with new annotations.
-	scope.ingress.Annotations = scope.updatedAnnotations
-	if err := r.Update(ctx, scope.ingress); err != nil {
-		scope.logger.Error(err, "Failed to update Ingress with new annotations")
+	ingress.Annotations = toBeAnnotations
+	if err := r.Update(ctx, ingress); err != nil {
+		logger.Error(err, "Failed to update Ingress with to-be annotations")
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, err
 	}
 
-	scope.logger.Info("Successfully reconciled Ingress with new annotations")
+	logger.Info("Successfully reconciled Ingress with to-be annotations")
 	return ctrl.Result{}, nil
+}
+
+func (r *IngressReconciler) GetToBeAnnotations(ctx context.Context, scope *ingressScope) model.Annotations {
+	ingress := scope.ingress
+	logger := scope.logger
+
+	toBeAnnotations := copyAnnotations(ingress.Annotations)
+	delete(toBeAnnotations, model.ReconcileKey)
+
+	// remove managed annotations if exists
+	if value, exists := toBeAnnotations[model.ManagedAnnotationsKey]; exists {
+		managedAnnotations := make(model.Annotations)
+		if err := json.Unmarshal([]byte(value), &managedAnnotations); err != nil {
+			logger.Error(err, "Warning: Failed to unmarshal managed annotations")
+		} else {
+			for key, value := range managedAnnotations {
+				if currentValue, exists := toBeAnnotations[key]; exists && currentValue == value {
+					delete(toBeAnnotations, key)
+				}
+			}
+		}
+		delete(toBeAnnotations, model.ManagedAnnotationsKey)
+	}
+
+	// add annotations by rules matched
+	annotationsByRules := r.Matcher.GetAnnotationsForIngress(ingress)
+	if len(annotationsByRules) > 0 {
+		for key, value := range annotationsByRules {
+			toBeAnnotations[key] = value
+		}
+		b := util.MustMarshalJSON(annotationsByRules)
+		toBeAnnotations[model.ManagedAnnotationsKey] = string(b) + "\n"
+	}
+	return toBeAnnotations
 }
 
 func copyAnnotations(annotations map[string]string) map[string]string {
@@ -133,58 +155,6 @@ func copyAnnotations(annotations map[string]string) map[string]string {
 	return copy
 }
 
-func (r *IngressReconciler) removeManagedAnnotations(scope *ingressScope) {
-	managedAnnotations := make(model.Annotations)
-	if value, ok := scope.ingress.Annotations[model.ManagedAnnotationsKey]; ok && value != "" {
-		if err := json.Unmarshal([]byte(value), &managedAnnotations); err != nil {
-			scope.logger.Error(err, "Warning: Failed to unmarshal managed annotations")
-		}
-	}
-
-	for key, value := range managedAnnotations {
-		if currentValue, exists := scope.updatedAnnotations[key]; exists && currentValue == value {
-			delete(scope.updatedAnnotations, key)
-		}
-	}
-	delete(scope.updatedAnnotations, model.ManagedAnnotationsKey)
-}
-
-func (r *IngressReconciler) addNewAnnotations(scope *ingressScope) {
-	newAnnotations := r.getNewAnnotations(scope)
-	for key, value := range newAnnotations {
-		scope.updatedAnnotations[key] = value
-	}
-	if len(newAnnotations) == 0 {
-		return
-	}
-
-	b := util.MustMarshalJSON(newAnnotations)
-	scope.updatedAnnotations[model.ManagedAnnotationsKey] = string(b) + "\n"
-}
-
-func (r *IngressReconciler) getNewAnnotations(scope *ingressScope) model.Annotations {
-	ruleNames := r.getRuleNames(scope)
-	rules := r.RulesStore.GetRules()
-	newAnnotations := make(model.Annotations)
-
-	for _, ruleName := range ruleNames {
-		if annotations, exists := (*rules)[ruleName]; exists {
-			for k, v := range annotations {
-				newAnnotations[k] = v
-			}
-		} else {
-			scope.logger.Info("Warning: no ruleName in rules", "ruleName", ruleName)
-		}
-	}
-	return newAnnotations
-}
-
-func (r *IngressReconciler) getRuleNames(scope *ingressScope) []string {
-	namespaceRuleNames := getRuleNamesFromObject(scope.namespace, model.RulesKey)
-	ingressRuleNames := getRuleNamesFromObject(scope.ingress, model.RulesKey)
-	return mergeRuleNames(namespaceRuleNames, ingressRuleNames)
-}
-
 func annotationsEqual(a, b map[string]string) bool {
 	if len(a) != len(b) {
 		return false
@@ -195,39 +165,4 @@ func annotationsEqual(a, b map[string]string) bool {
 		}
 	}
 	return true
-}
-
-func mergeRuleNames(names1, names2 []string) []string {
-	seen := make(map[string]bool)
-	result := []string{}
-
-	for _, name := range names1 {
-		if !seen[name] {
-			seen[name] = true
-			result = append(result, name)
-		}
-	}
-
-	for _, name := range names2 {
-		if !seen[name] {
-			seen[name] = true
-			result = append(result, name)
-		}
-	}
-
-	return result
-}
-
-func getRuleNamesFromObject(obj client.Object, key string) []string {
-	if value, ok := obj.GetAnnotations()[key]; ok && value != "" {
-		names := strings.Split(value, ",")
-		var cleaned []string
-		for _, name := range names {
-			if trimmedName := strings.TrimSpace(name); trimmedName != "" {
-				cleaned = append(cleaned, trimmedName)
-			}
-		}
-		return cleaned
-	}
-	return []string{}
 }
