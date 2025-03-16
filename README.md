@@ -50,7 +50,7 @@ To install and configure Ingress Annotator, follow these steps:
 3. **Deploy Ingress Annotator**
 
    ```sh
-   kubectl create -f https://raw.githubusercontent.com/kuoss/ingress-annotator/refs/heads/main/deploy/ingress-annotator.yaml
+   kubectl apply -f https://raw.githubusercontent.com/kuoss/ingress-annotator/refs/heads/main/deploy/ingress-annotator.yaml
    ```
 
    Verify that the deployment is running:
