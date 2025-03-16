@@ -108,7 +108,7 @@ func TestConfigMapReconciler_Reconcile(t *testing.T) {
 			nn:        types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
 			requestNN: types.NamespacedName{Namespace: "default", Name: "ingress-annotator"},
 			want:      ctrl.Result{RequeueAfter: 30 * time.Second},
-			wantError: "failed to update rules in rules store: failed to extract rules from configMap: failed to unmarshal rules: yaml: unmarshal errors:\n  line 1: cannot unmarshal !!str `invalid...` into []model.Rule",
+			wantError: "failed to update rules in rules store: failed to extract rules from configMap: failed to unmarshal rules: yaml: unmarshal errors:\n  line 1: cannot unmarshal !!str `invalid...` into []model.XRule",
 		},
 		{
 			name:      "No requeue when ConfigMap has no changes",

@@ -67,7 +67,7 @@ func TestGetRules(t *testing.T) {
 		Annotations: model.Annotations{"key1": "value1"},
 	}}
 	store := &RulesStore{
-		Rules:      wantRules,
+		rules:      wantRules,
 		rulesMutex: &sync.Mutex{},
 	}
 
@@ -116,6 +116,25 @@ func TestUpdateRules(t *testing.T) {
 			wantRules: []model.Rule{{
 				Description: "rule1",
 				Annotations: model.Annotations{"key1": "value1"},
+			}},
+		},
+		{
+			name: "Valid ConfigMap",
+			cm: &corev1.ConfigMap{
+				Data: map[string]string{
+					"rules": `
+- description: rule1
+  annotations:
+    key1: value1
+  listAnnotations:
+    whitelist-source-range:
+    - 1.1.1.1/32
+    - 2.2.2.2
+`},
+			},
+			wantRules: []model.Rule{{
+				Description: "rule1",
+				Annotations: model.Annotations{"key1": "value1", "whitelist-source-range": "1.1.1.1/32,2.2.2.2"},
 			}},
 		},
 		{
