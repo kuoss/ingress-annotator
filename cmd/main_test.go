@@ -127,7 +127,7 @@ func TestRun(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Namespace: "test-namespace", Name: "ingress-annotator"},
 				Data:       map[string]string{"rules": "invalid rules"},
 			},
-			wantError: "unable to start rules store: failed to initialize RulesStore: failed to extract rules from configMap: failed to unmarshal rules: yaml: unmarshal errors:\n  line 1: cannot unmarshal !!str `invalid...` into []model.Rule",
+			wantError: "unable to start rules store: failed to initialize RulesStore: failed to extract rules from configMap: failed to unmarshal rules: yaml: unmarshal errors:\n  line 1: cannot unmarshal !!str `invalid...` into []model.XRule",
 		},
 		{
 			name:      "Error setting up ready check",

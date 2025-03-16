@@ -17,7 +17,7 @@ type IRulesStore interface {
 }
 
 type RulesStore struct {
-	Rules      []model.Rule
+	rules      []model.Rule
 	rulesMutex *sync.Mutex
 }
 
@@ -35,7 +35,7 @@ func (s *RulesStore) GetRules() []model.Rule {
 	s.rulesMutex.Lock()
 	defer s.rulesMutex.Unlock()
 
-	return s.Rules
+	return s.rules
 }
 
 func (s *RulesStore) UpdateRules(cm *corev1.ConfigMap) error {
@@ -52,7 +52,7 @@ func (s *RulesStore) updateRules(rules []model.Rule) {
 	s.rulesMutex.Lock()
 	defer s.rulesMutex.Unlock()
 
-	s.Rules = rules
+	s.rules = rules
 }
 
 func getRulesFromConfigMap(cm *corev1.ConfigMap) ([]model.Rule, error) {
@@ -65,9 +65,18 @@ func getRulesFromConfigMap(cm *corev1.ConfigMap) ([]model.Rule, error) {
 		return nil, errors.New("configMap missing 'rules' key")
 	}
 
-	var rules []model.Rule
-	if err := yaml.Unmarshal([]byte(rulesText), &rules); err != nil {
+	var xRules []model.XRule
+	if err := yaml.Unmarshal([]byte(rulesText), &xRules); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal rules: %w", err)
+	}
+
+	rules := []model.Rule{}
+	for _, x := range xRules {
+		rule, err := x.ToRule()
+		if err != nil {
+			return nil, fmt.Errorf("ToRule err: %w", err)
+		}
+		rules = append(rules, rule)
 	}
 
 	return rules, nil
