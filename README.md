@@ -8,7 +8,7 @@
 The **Ingress Annotator** is a Kubernetes utility designed to streamline the management and application of annotations across Ingress resources within your clusters. With this tool, you can define reusable annotation rules in a ConfigMap, which are automatically propagated to your Ingresses based on simple selectors. This ensures that updates to your annotation rules are applied immediately and consistently across relevant Ingress resources, reducing the risk of errors and enhancing the maintainability of your deployments.
 
 ## Features
-- **Centralized Annotation Management**: DDefine reusable annotations in a ConfigMap that can be applied to multiple Ingress resources. This promotes consistency and reduces the need for repetitive configurations.
+- **Centralized Annotation Management**: Define reusable annotations in a ConfigMap that can be applied to multiple Ingress resources. This promotes consistency and reduces the need for repetitive configurations.
 - **Flexible and Scalable Application**: Apply annotation rules to individual Ingress resources automatically using powerful selection mechanisms, simplifying configuration management in your Kubernetes environment.
 - **Dynamic and Automatic Updates**: Any changes to the annotation rules in the ConfigMap are automatically applied to all relevant Ingress resources. The ingress-annotator controller continuously reconciles Ingress annotations to ensure they remain up to date.
 - 
