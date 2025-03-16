@@ -117,13 +117,13 @@ To install and configure Ingress Annotator, follow these steps:
 
 6. **Modify and Apply ConfigMap**
 
-  After installation, you can modify the ConfigMap as needed to apply custom rules.
+   After installation, you can modify the ConfigMap as needed to apply custom rules.
 
-  To edit the existing ConfigMap:
+   To edit the existing ConfigMap:
 
-  ```sh
-  kubectl edit configmap ingress-annotator -n ingress-annotator
-  ```
+   ```sh
+   kubectl edit configmap ingress-annotator -n ingress-annotator
+   ```
 
 ## Rule Examples
 
@@ -139,7 +139,8 @@ To install and configure Ingress Annotator, follow these steps:
 
 Alternatively, using a list format:
 
-  `listAnnotations` allows defining annotations in a structured list format, making it easier to manage multiple values and add descriptive comments.
+> [!NOTE]
+> `listAnnotations` allows defining annotations in a structured list format, making it easier to manage multiple values and add descriptive comments.
 
 ```yaml
 - description: allow-specific-ips
