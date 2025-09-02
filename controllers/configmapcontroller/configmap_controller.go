@@ -64,7 +64,7 @@ func (r *ConfigMapReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	var cm corev1.ConfigMap
 	if err := r.Get(ctx, r.NN, &cm); err != nil {
 		if apierrors.IsNotFound(err) {
-			logger.Error(err, "ConfigMap %s not found, will retry after delay", r.NN)
+			logger.Error(err, "ConfigMap not found, will retry after delay", "namespace", r.NN)
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, fmt.Errorf("failed to get ConfigMap: %w", err)
