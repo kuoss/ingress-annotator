@@ -172,7 +172,7 @@ MOCKGEN ?= $(LOCALBIN)/mockgen
 KUSTOMIZE_VERSION ?= v5.4.2
 CONTROLLER_TOOLS_VERSION ?= v0.15.0
 ENVTEST_VERSION ?= release-0.18
-GOLANGCI_LINT_VERSION ?= v2.4.0
+GOLANGCI_LINT_VERSION := $(shell cat .github/workflows/pull-request.yml | grep [[:space:]]version: | sed 's/.*version: //')
 MOCKGEN_VERSION ?= v0.6.0
 
 .PHONY: kustomize
