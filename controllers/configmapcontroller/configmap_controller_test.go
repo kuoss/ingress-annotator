@@ -136,7 +136,6 @@ func TestConfigMapReconciler_Reconcile(t *testing.T) {
 
 	for i, tc := range testCases {
 		t.Run(testcase.Name(i, tc.name), func(t *testing.T) {
-
 			ctx := context.Background()
 
 			client := fakeclient.NewClient(tc.clientOpts, tc.cm)

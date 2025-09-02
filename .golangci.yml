@@ -1,50 +1,54 @@
+version: "2"
 run:
-  timeout: 5m
   allow-parallel-runners: true
-
-issues:
-  # don't skip warning about doc comments
-  # don't exclude the default set of lint
-  exclude-use-default: false
-  # restore some of the defaults
-  # (fill in the rest as needed)
-  exclude-rules:
-    - path: "api/*"
-      linters:
-        - lll
-    - path: "controller/*"
-      linters:
-        - dupl
-        - lll
-    - path: "_test.go"
-      linters:
-        - lll
-        - unparam
 linters:
-  disable-all: true
+  default: none
   enable:
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    #- contextcheck
+    - decorder
+    - dogsled
     - dupl
+    - durationcheck
     - errcheck
+    - errchkjson
+    - errname
     - ginkgolinter
+    - gocheckcompilerdirectives
     - goconst
+    #- gocritic
     - gocyclo
-    - gofmt
-    - goimports
-    - gosimple
+    - godox
+    - goheader
+    - gomoddirectives
+    - gomodguard
+    - goprintffuncname
+    #- gosec
     - govet
+    - grouper
+    - importas
     - ineffassign
-    - lll
+    - loggercheck
+    - makezero
     - misspell
+    - musttag
     - nakedret
+    - nolintlint
+    - nosprintfhostport
     - prealloc
-    - revive
+    - predeclared
+    - promlinter
+    - reassign
+    # - revive
+    - rowserrcheck
+    - sqlclosecheck
     - staticcheck
-    - typecheck
+    - testableexamples
     - unconvert
     - unparam
     - unused
-
-linters-settings:
-  revive:
-    rules:
-      - name: comment-spacings
+    - usestdlibvars
+    - whitespace

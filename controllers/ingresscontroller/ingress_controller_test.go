@@ -428,11 +428,11 @@ func TestCopyAnnotations(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(testcase.Name(i, tt.name), func(t *testing.T) {
-			copy := copyAnnotations(tt.input)
-			assert.Equal(t, tt.expectedOutput, copy)
+			dst := copyAnnotations(tt.input)
+			assert.Equal(t, tt.expectedOutput, dst)
 
 			if tt.modifyCopy {
-				copy["key1"] = "modifiedValue"
+				dst["key1"] = "modifiedValue"
 				assert.Equal(t, "value1", tt.input["key1"], "Original map should not be modified")
 			}
 		})

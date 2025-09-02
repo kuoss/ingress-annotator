@@ -133,7 +133,7 @@ func (r *IngressReconciler) GetToBeAnnotations(ctx context.Context, scope *ingre
 	}
 
 	// add annotations by rules matched
-	annotationsByRules := r.Matcher.GetAnnotationsForIngress(ingress)
+	annotationsByRules := r.GetAnnotationsForIngress(ingress)
 	if len(annotationsByRules) > 0 {
 		for key, value := range annotationsByRules {
 			toBeAnnotations[key] = value
@@ -148,11 +148,11 @@ func copyAnnotations(annotations map[string]string) map[string]string {
 	if annotations == nil {
 		return make(map[string]string)
 	}
-	copy := make(map[string]string, len(annotations))
+	dst := make(map[string]string, len(annotations))
 	for k, v := range annotations {
-		copy[k] = v
+		dst[k] = v
 	}
-	return copy
+	return dst
 }
 
 func annotationsEqual(a, b map[string]string) bool {

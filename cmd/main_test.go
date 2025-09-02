@@ -12,6 +12,7 @@ import (
 	"go.uber.org/mock/gomock"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -75,7 +76,7 @@ func setupMockManager(mockCtrl *gomock.Controller, opts *managerOpts, objs ...cl
 	mockManager.EXPECT().GetCache().Return(mockCache).AnyTimes()
 	mockManager.EXPECT().GetClient().Return(fakeClient).AnyTimes()
 	mockManager.EXPECT().GetScheme().Return(scheme).AnyTimes()
-	mockManager.EXPECT().GetControllerOptions().Return(config.Controller{}).AnyTimes()
+	mockManager.EXPECT().GetControllerOptions().Return(config.Controller{SkipNameValidation: ptr.To(true)}).AnyTimes()
 	mockManager.EXPECT().Add(gomock.Any()).Return(nil).AnyTimes()
 	mockManager.EXPECT().AddHealthzCheck(gomock.Any(), gomock.Any()).Return(opts.AddHealthzCheckErr).AnyTimes()
 	mockManager.EXPECT().AddReadyzCheck(gomock.Any(), gomock.Any()).Return(opts.AddReadyzCheckErr).AnyTimes()
